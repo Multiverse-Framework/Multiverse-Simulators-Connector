@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from threading import Thread
-from typing import Optional, Dict, List, Tuple, Any, Callable
+from typing import Optional, Dict, List, Tuple, Any, Callable, Union
 
 import numpy
 
@@ -158,8 +158,8 @@ class MultiverseViewer:
 
     def __init__(
             self,
-            write_objects: Optional[Dict[str, Dict[str, numpy.ndarray | List[float]]]] = None,
-            read_objects: Optional[Dict[str, Dict[str, numpy.ndarray | List[float]]]] = None,
+            write_objects: Optional[Dict[str, Dict[str, Union[numpy.ndarray, List[float]]]]] = None,
+            read_objects: Optional[Dict[str, Dict[str, Union[numpy.ndarray, List[float]]]]] = None,
             logging_interval: float = -1
     ):
         self._write_objects = self.from_array(write_objects) if write_objects is not None else {}
@@ -173,12 +173,12 @@ class MultiverseViewer:
             self.logger = MultiverseLogger(self.read_objects)
 
     @staticmethod
-    def from_array(data: Dict[str, Dict[str, numpy.ndarray | List[float]]]) \
+    def from_array(data: Dict[str, Dict[str, Union[numpy.ndarray, List[float]]]]) \
             -> Dict[str, Dict[str, MultiverseAttribute]]:
         """
         Convert the data array to MultiverseAttribute objects
 
-        :param data: Dict[str, Dict[str, numpy.ndarray | List[float]]], data array
+        :param data: Dict[str, Dict[str, Union[numpy.ndarray, List[float]]]], data array
         :return: Dict[str, Dict[str, MultiverseAttribute]], MultiverseAttribute objects
         """
         return {key: {key2: MultiverseAttribute(default_value=value)
@@ -216,7 +216,7 @@ class MultiverseViewer:
         return self._write_objects
 
     @write_objects.setter
-    def write_objects(self, send_objects: Dict[str, Dict[str, numpy.ndarray | List[float] | MultiverseAttribute]]):
+    def write_objects(self, send_objects: Dict[str, Dict[str, Union[numpy.ndarray, List[float], MultiverseAttribute]]]):
         number_of_envs = self.write_data.shape[0]
         self._write_objects, self._write_data = (
             self._get_objects_and_data_from_target_objects(send_objects, number_of_envs))
@@ -228,7 +228,7 @@ class MultiverseViewer:
         return self._read_objects
 
     @read_objects.setter
-    def read_objects(self, objects: Dict[str, Dict[str, numpy.ndarray | List[float] | MultiverseAttribute]]):
+    def read_objects(self, objects: Dict[str, Dict[str, Union[numpy.ndarray, List[float], MultiverseAttribute]]]):
         number_of_envs = self.read_data.shape[0]
         self._read_objects, self._read_data = (
             self._get_objects_and_data_from_target_objects(objects, number_of_envs))
@@ -238,13 +238,13 @@ class MultiverseViewer:
 
     @staticmethod
     def _get_objects_and_data_from_target_objects(
-            target_objects: Dict[str, Dict[str, numpy.ndarray | List[float] | MultiverseAttribute]],
+            target_objects: Dict[str, Dict[str, Union[numpy.ndarray, List[float], MultiverseAttribute]]],
             number_of_envs: int) \
             -> Tuple[Dict[str, Dict[str, MultiverseAttribute]], numpy.ndarray]:
         """
         Update object attribute values from the target objects.
 
-        :param target_objects: Dict[str, Dict[str, numpy.ndarray | List[float] | MultiverseAttribute]], target objects
+        :param target_objects: Dict[str, Dict[str, Union[numpy.ndarray, List[float], MultiverseAttribute]]], target objects
         :param number_of_envs: int, number of environments
         """
         if any(isinstance(value, (numpy.ndarray, list)) for values in target_objects.values() for value in
@@ -695,7 +695,7 @@ class MultiverseSimulator:
         return self._renderer
 
     @classmethod
-    def add_callback(cls, callback: Callable | MultiverseCallback, callbacks: List[MultiverseCallback]):
+    def add_callback(cls, callback: Union[Callable, MultiverseCallback], callbacks: List[MultiverseCallback]):
         if not isinstance(callback, MultiverseCallback):
             if isinstance(callback, Callable):
                 callback = MultiverseCallback(callback=callback)
@@ -707,11 +707,11 @@ class MultiverseSimulator:
         callbacks.append(callback)
         cls.log_info(f"Function {callback.__name__} is registered")
 
-    def add_instance_callback(self, callback: Callable | MultiverseCallback):
+    def add_instance_callback(self, callback: Union[Callable, MultiverseCallback]):
         self.add_callback(callback, self.instance_level_callbacks)
 
     @classmethod
-    def add_class_callback(cls, callback: Callable | MultiverseCallback):
+    def add_class_callback(cls, callback: Union[Callable, MultiverseCallback]):
         cls.add_callback(callback, cls.class_level_callbacks)
 
     @classmethod

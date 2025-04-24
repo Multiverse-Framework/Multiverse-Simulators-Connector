@@ -5,13 +5,17 @@ import sys
 import xml.etree.ElementTree as ET
 from typing import Dict, Any
 
+current_dir = os.path.dirname(__file__)
+lib_dir = os.path.abspath(os.path.join(current_dir, '..', 'src'))
+sys.path.insert(0, lib_dir)
+
+from multiverse_simulator import MultiverseSimulatorCompiler, Robot, Object, multiverse_simulator_compiler_main
+
 sys.path = [p for p in sys.path if p != os.path.dirname(os.path.abspath(__file__))]
 import mujoco
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy
-
-from multiverse_simulator import MultiverseSimulatorCompiler, Robot, Object, multiverse_simulator_compiler_main
 
 
 def fix_mesh_and_texture_paths(spec: mujoco.MjSpec, default_path: str):

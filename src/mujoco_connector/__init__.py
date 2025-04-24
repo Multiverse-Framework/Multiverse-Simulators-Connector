@@ -1,1 +1,1 @@
-from .src.mujoco_connector import MultiverseMujocoConnector, MujocoCompiler
+from .src.mujoco_connector import MultiverseMujocoConnector

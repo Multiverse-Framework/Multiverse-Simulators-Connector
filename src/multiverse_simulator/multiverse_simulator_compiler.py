@@ -95,15 +95,9 @@ class MultiverseSimulatorCompiler:
 
 
 def multiverse_simulator_compiler_main(Compiler=MultiverseSimulatorCompiler):
-    save_dir_path_1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "saved")
-    save_dir_path_2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "..", "..",
-                                   "saved")
-    if os.path.exists(save_dir_path_1):
-        save_dir_path = save_dir_path_1
-    elif os.path.exists(save_dir_path_2):
-        save_dir_path = save_dir_path_2
-    else:
-        raise FileNotFoundError(f"Could not find default save directory")
+    save_dir_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "..", "saved")
+    if not os.path.exists(save_dir_path):
+        raise FileNotFoundError(f"Could not find default save directory {save_dir_path}.")
 
     # Initialize argument parser
     parser = argparse.ArgumentParser(description=f"Compile {Compiler.ext} from world and robots.")
