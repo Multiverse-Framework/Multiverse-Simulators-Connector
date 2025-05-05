@@ -3,7 +3,7 @@
 import os
 import sys
 import xml.etree.ElementTree as ET
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 current_dir = os.path.dirname(__file__)
 lib_dir = os.path.abspath(os.path.join(current_dir, '..', 'src'))
@@ -34,7 +34,7 @@ def fix_mesh_and_texture_paths(spec: mujoco.MjSpec, default_path: str):
             texture.file = os.path.join(texturedir_abs, texture.file)
 
 
-def add_entity(entities: Dict[str, Robot | Object], home_key, worldbody_frame: mujoco.MjsFrame):
+def add_entity(entities: Dict[str, Union[Robot, Object]], home_key, worldbody_frame: mujoco.MjsFrame):
     for entity_name, entity in entities.items():
         entity_spec: mujoco.MjSpec = mujoco.MjSpec.from_file(filename=entity.path)
         entity_spec.compiler.degree = 0
@@ -195,7 +195,7 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
             with open(self.save_file_path, "w") as f:
                 f.write(file_xml_string)
 
-    def fix_prefix_and_suffix(self, entities: Dict[str, Robot | Object]):
+    def fix_prefix_and_suffix(self, entities: Dict[str, Union[Robot, Object]]):
         for entity_name, entity in entities.items():
             for entity_type in ["key", "body", "joint", "geom", "actuator"]:
                 entity_prefix = entity.prefix.get(entity_type, "")
