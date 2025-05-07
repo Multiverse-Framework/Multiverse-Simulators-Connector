@@ -78,7 +78,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_model.opt.timestep = self.step_size
         if kwargs.get('multiccd', False):
             self._mj_model.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_MULTICCD
-        if kwargs.get('energy', True):
+        if kwargs.get('energy', True) and not self.use_mjx:
             self._mj_model.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_ENERGY
         if not kwargs.get('contact', True):
             self._mj_model.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_CONTACT
@@ -86,7 +86,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             self._mj_model.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_GRAVITY
         if mujoco.mj_version() >= 330:
             if not kwargs.get('nativeccd', True):
-                self._mj_model.opt.disableflags |= mujoco.mjtDisableBit.mjENBL_NATIVECCD
+                self._mj_model.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_NATIVECCD
         else:
             if kwargs.get('nativeccd', False):
                 self._mj_model.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_NATIVECCD
@@ -631,23 +631,50 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                 type=MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
                 info=f"Body 1 {body_1_name} is already attached to body 2 {body_2_name}"
             )
-
-        body_1_spec = self._mj_spec.find_body(body_1_name)
+        if mujoco.mj_version() >= 330:
+            body_1_spec = self._mj_spec.body(body_1_name)
+        else:
+            body_1_spec = self._mj_spec.find_body(body_1_name)
         if body_1_spec is None:
             self.log_warning(f"Body 1 {body_1_name} not found in the model specification, this is a bug from MuJoCo")
             body_1_spec = next(body for body in self._mj_spec.bodies if body.name == body_1_name)
-        body_2_spec = self._mj_spec.find_body(body_2_name)
+        if mujoco.mj_version() >= 330:
+            body_2_spec = self._mj_spec.body(body_2_name)
+        else:
+            body_2_spec = self._mj_spec.find_body(body_2_name)
         if body_2_spec is None:
             self.log_warning(f"Body 2 {body_2_name} not found in the model specification, this is a bug from MuJoCo")
             body_2_spec = next(body for body in self._mj_spec.bodies if body.name == body_2_name)
-        first_joint: mujoco.MjsJoint = body_1_spec.first_joint()
-        if first_joint is not None and first_joint.type == mujoco.mjtJoint.mjJNT_FREE:
-            first_joint.delete()
-        body_2_frame = body_2_spec.add_frame()
         dummy_prefix = "AVeryDumbassPrefixThatIsUnlikelyToBeUsedBecauseMuJoCoRequiresIt"
-        body_1_spec_new = body_2_frame.attach_body(body_1_spec, dummy_prefix, "")
-        body_1_spec_new.pos = relative_position
-        body_1_spec_new.quat = relative_quaternion
+        body_1_spec_new = body_2_spec.add_body(
+            name=f"{dummy_prefix}{body_1_name}",
+            pos=relative_position,
+            quat=relative_quaternion
+        )
+        # for body_child in body_1_spec_copy.bodies:
+        #     body_2_spec.add_body(body_child)
+        for geom_child in body_1_spec.geoms:
+            body_1_spec_new.add_geom(
+                name=f"{dummy_prefix}{geom_child.name}",
+                pos=geom_child.pos,
+                quat=geom_child.quat,
+                type=geom_child.type,
+                size=geom_child.size,
+                rgba=geom_child.rgba,
+                conaffinity=geom_child.conaffinity,
+                condim=geom_child.condim,
+                contype=geom_child.contype,
+                density=geom_child.density,
+                friction=geom_child.friction,
+                meshname=geom_child.meshname,
+            )
+        # for site_child in body_1_spec_copy.sites:
+        #     body_1_spec.add_site(site_child)
+
+        # body_2_frame = body_2_spec.add_frame()
+        # body_1_spec_new = body_2_frame.attach_body(body_1_spec, dummy_prefix, "")
+        # body_1_spec_new.pos = relative_position
+        # body_1_spec_new.quat = relative_quaternion
         self._mj_spec.detach_body(body_1_spec)
         self._fix_prefix_and_recompile(body_1_spec_new, dummy_prefix, body_1_name)
         mujoco.mj_step1(self._mj_model, self._mj_data)
@@ -677,11 +704,35 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         absolute_position = self._mj_data.body(body_id).xpos
         absolute_quaternion = self._mj_data.body(body_id).xquat
         parent_body_name = self._mj_model.body(parent_body_id).name
-        body_spec = self._mj_spec.find_body(body_name)
+        if mujoco.mj_version() >= 330:
+            body_spec = self._mj_spec.body(body_name)
+        else:
+            body_spec = self._mj_spec.find_body(body_name)
         dummy_prefix = "AVeryDumbassPrefixThatIsUnlikelyToBeUsedBecauseMuJoCoRequiresIt"
-        body_spec_new = self._mj_spec.worldbody.add_frame().attach_body(body_spec, dummy_prefix, "")
-        body_spec_new.pos = absolute_position
-        body_spec_new.quat = absolute_quaternion
+        body_spec_new = self._mj_spec.worldbody.add_body(
+            name=f"{dummy_prefix}{body_name}",
+            pos=absolute_position,
+            quat=absolute_quaternion
+        )
+        # for body_child in body_1_spec_copy.bodies:
+        #     body_2_spec.add_body(body_child)
+        for geom_child in body_spec.geoms:
+            body_spec_new.add_geom(
+                name=f"{dummy_prefix}{geom_child.name}",
+                pos=geom_child.pos,
+                quat=geom_child.quat,
+                type=geom_child.type,
+                size=geom_child.size,
+                rgba=geom_child.rgba,
+                conaffinity=geom_child.conaffinity,
+                condim=geom_child.condim,
+                contype=geom_child.contype,
+                density=geom_child.density,
+                friction=geom_child.friction,
+                meshname=geom_child.meshname,
+            )
+        # for site_child in body_1_spec_copy.sites:
+        #     body_1_spec.add_site(site_child)
         if add_freejoint:
             body_spec_new.add_freejoint()
         self._mj_spec.detach_body(body_spec)

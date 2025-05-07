@@ -1,0 +1,6 @@
+requests
+tqdm
+pytest
+coverage
+pytest-cov
+opencv-python

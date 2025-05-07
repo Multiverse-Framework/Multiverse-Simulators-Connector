@@ -97,7 +97,7 @@ class MultiverseSimulatorCompiler:
 def multiverse_simulator_compiler_main(Compiler=MultiverseSimulatorCompiler):
     save_dir_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "..", "saved")
     if not os.path.exists(save_dir_path):
-        raise FileNotFoundError(f"Could not find default save directory {save_dir_path}.")
+        save_dir_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "resources", "saved")
 
     # Initialize argument parser
     parser = argparse.ArgumentParser(description=f"Compile {Compiler.ext} from world and robots.")

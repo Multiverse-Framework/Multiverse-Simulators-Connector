@@ -5,6 +5,7 @@
 import atexit
 import logging
 import time
+import os
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -136,6 +137,9 @@ class MultiverseLogger:
 
         # Writing to CSV, index=False to avoid writing row numbers
         print(f"Saving data to {save_file_path}")
+        save_file_dir = os.path.dirname(save_file_path)
+        if not os.path.exists(save_file_dir):
+            os.makedirs(save_file_dir)
         df.to_csv(save_file_path, index=False)
 
     @property
