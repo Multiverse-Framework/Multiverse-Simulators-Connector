@@ -837,8 +837,13 @@ class MultiverseMujocoConnector(MultiverseSimulator):
 
             if including_children:
                 body_id = mujoco.mj_name2id(m=self._mj_model, type=mujoco.mjtObj.mjOBJ_BODY, name=body_name)
-                body_root_map.update({self._mj_model.body(child_body_id).name: get_body_root_name.result
-                                      for child_body_id in self.get_children_ids(body_id)})
+                if body_id != 0:
+                    body_root_map.update({self._mj_model.body(child_body_id).name: get_body_root_name.result
+                                          for child_body_id in self.get_children_ids(body_id)})
+                else:
+                    for child_body_id in range(self._mj_model.nbody):
+                        child_body = self._mj_model.body(child_body_id)
+                        body_root_map.update({child_body.name: self.get_body_root_name(child_body.name).result})
         body_names = list(body_root_map.keys())
 
         contact_points = []

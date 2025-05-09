@@ -234,6 +234,11 @@ class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
                 self.assertIsInstance(result.result, list)
                 self.assertEqual(len(result.result), 4)
 
+                result = simulator.callbacks["get_contact_points"](body_names=["world"])
+                self.assertEqual(MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION, result.type)
+                self.assertIsInstance(result.result, list)
+                self.assertEqual(len(result.result), 4)
+
             if step == 500:
                 result = simulator.callbacks["ray_test"](ray_from_position=[0.7, 0.0, 1.0],
                                                          ray_to_position=[0.7, 0.0, 0.0])
