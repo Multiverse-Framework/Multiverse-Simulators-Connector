@@ -33,92 +33,6 @@ def fix_mesh_and_texture_paths(spec: mujoco.MjSpec, default_path: str):
         if not os.path.isabs(texture.file):
             texture.file = os.path.join(texturedir_abs, texture.file)
 
-
-def add_entity(entities: Dict[str, Union[Robot, Object]], home_key, worldbody_frame: mujoco.MjsFrame):
-    for entity_name, entity in entities.items():
-        entity_spec: mujoco.MjSpec = mujoco.MjSpec.from_file(filename=entity.path)
-        entity_spec.compiler.degree = 0
-
-        fix_mesh_and_texture_paths(entity_spec, os.path.dirname(entity.path))
-
-        entity_model = mujoco.MjModel.from_xml_path(entity.path)
-        for body_name, body_apply in entity.apply.get("body", {}).items():
-            if isinstance(body_apply, dict):
-                if mujoco.mj_version() >= 330:
-                    applied_body = entity_spec.body(body_name)
-                else:
-                    applied_body = entity_spec.find_body(body_name)
-                for apply_name, apply_data in body_apply.items():
-                    setattr(applied_body, apply_name, apply_data)
-            else:
-                for applied_body in entity_spec.bodies:
-                    setattr(applied_body, body_name, body_apply)
-
-        for joint_name, joint_apply in entity.apply.get("joint", {}).items():
-            if isinstance(joint_apply, dict):
-                if joint_name.isdigit():
-                    joint_id = int(joint_name)
-                else:
-                    joint_id = entity_model.joint(joint_name).id
-                applied_joint = entity_spec.joints[joint_id]
-                for apply_name, apply_data in joint_apply.items():
-                    setattr(applied_joint, apply_name, apply_data)
-            else:
-                for applied_joint in entity_spec.joints:
-                    setattr(applied_joint, joint_name, joint_apply)
-
-        for geom_name, geom_apply in entity.apply.get("geom", {}).items():
-            if isinstance(geom_apply, dict):
-                if geom_name.isdigit():
-                    geom_id = int(geom_name)
-                else:
-                    geom_id = entity_model.geom(geom_name).id
-                applied_geom = entity_spec.geoms[geom_id]
-                for apply_name, apply_data in geom_apply.items():
-                    setattr(applied_geom, apply_name, apply_data)
-            else:
-                for applied_geom in entity_spec.geoms:
-                    setattr(applied_geom, geom_name, geom_apply)
-
-        entity_model = entity_spec.compile()
-        entity_data = mujoco.MjData(entity_model)
-        mujoco.mj_step1(entity_model, entity_data)
-
-        home_key.qpos = numpy.append(home_key.qpos, entity_data.qpos)
-        home_key.ctrl = numpy.append(home_key.ctrl, entity_data.ctrl)
-
-        if entity.disable_self_collision != "off":
-            if entity.disable_self_collision == "auto":
-                body_collision_dict = {}
-                for geom1_id, geom2_id in zip(entity_data.contact.geom1, entity_data.contact.geom2):
-                    body1_id = entity_model.geom(geom1_id).bodyid[0]
-                    body1_name = entity_model.body(body1_id).name
-                    body2_id = entity_model.geom(geom2_id).bodyid[0]
-                    body2_name = entity_model.body(body2_id).name
-                    body_collision_dict[body1_name] = body_collision_dict.get(body1_name, set()).union({body2_name})
-                for body1_name, body2_names in body_collision_dict.items():
-                    for body2_name in body2_names:
-                        if not any(exclude.bodyname1 in {body1_name, body2_name} or
-                                   exclude.bodyname2 in {body1_name, body2_name} for exclude in entity_spec.excludes):
-                            entity_spec.add_exclude(name=f"{body1_name}_{body2_name}",
-                                                    bodyname1=body1_name,
-                                                    bodyname2=body2_name)
-            elif entity.disable_self_collision == "on":
-                for body_1 in entity_spec.bodies:
-                    for body_2 in entity_spec.bodies:
-                        if body_1 != body_2:
-                            entity_spec.add_exclude(name=f"{body_1.name}_{body_2.name}",
-                                                    bodyname1=body_1.name,
-                                                    bodyname2=body_2.name)
-
-        entity_root_name = list(entity_spec.bodies)[1].name
-        if mujoco.mj_version() >= 330:
-            child_body = entity_spec.body(entity_root_name)
-        else:
-            child_body = entity_spec.find_body(entity_root_name)
-        worldbody_frame.attach_body(child_body, f"{entity_name}_", f"")
-
-
 def fix_prefix_and_suffix_each(entity_element_name: str, entity_prefix: str, entity_suffix: str,
                                entity_name: str) -> str:
     if entity_element_name[:len(entity_name) + 1] == f"{entity_name}_":
@@ -147,26 +61,51 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
 
         fix_mesh_and_texture_paths(self.world_spec, os.path.dirname(self.world_path))
 
+        world_model = self.world_spec.compile()
+        world_data = mujoco.MjData(world_model)
+        mujoco.mj_step(world_model, world_data)
         if not any(key.name == "home" for key in self.world_spec.keys):
             self.world_spec.add_key(name="home")
-        home_key = [key for key in self.world_spec.keys if key.name == "home"][0]
-        home_key.time = 0.0
+        self.home_key = [key for key in self.world_spec.keys if key.name == "home"][0]
+        self.home_key.time = 0.0
+        if len(self.home_key.qpos) == 0:
+            self.home_key.qpos = world_data.qpos
+        if len(self.home_key.ctrl) == 0:
+            self.home_key.ctrl = world_data.ctrl
 
         worldbody_frame = self.world_spec.worldbody.add_frame()
         if mujoco.mj_version() >= 330:
             self.world_spec.compile()
 
-        add_entity(objects, home_key, worldbody_frame)
+        self.add_entity(objects, worldbody_frame)
         self.fix_prefix_and_suffix(objects)
-        add_entity(robots, home_key, worldbody_frame)
+        self.add_entity(robots, worldbody_frame)
         self.fix_prefix_and_suffix(robots)
 
-        for key in self.world_spec.keys[:-1]:
-            key.delete()
-
-        self.add_references(references)
-
         self.world_spec.compile()
+        for key in self.world_spec.keys[1:]:
+            if len(key.qpos) > 0:
+                if len(self.world_spec.keys[0].qpos) == 0:
+                    self.world_spec.keys[0].qpos = key.qpos
+                else:
+                    key_qpos = self.world_spec.keys[0].qpos
+                    for i in range(len(key_qpos)):
+                        if numpy.isclose(key_qpos[i], 0.0):
+                            key_qpos[i] = key.qpos[i]
+                    self.world_spec.keys[0].qpos = key_qpos
+            if len(key.ctrl) > 0:
+                if len(self.world_spec.keys[0].ctrl) == 0:
+                    self.world_spec.keys[0].ctrl = key.ctrl
+                else:
+                    key_ctrl = self.world_spec.keys[0].ctrl
+                    for i in range(len(key_ctrl)):
+                        if numpy.isclose(key_ctrl[i], 0.0):
+                            key_ctrl[i] = key.ctrl[i]
+                    self.world_spec.keys[0].ctrl = key_ctrl
+        self.world_spec.compile()
+        self.add_references(references)
+        self.world_spec.compile()
+
         xml_string = self.world_spec.to_xml()
         with open(self.save_file_path, "w") as f:
             f.write(xml_string)
@@ -194,6 +133,87 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
             file_xml_string = ET.tostring(root, encoding='unicode', method='xml')
             with open(self.save_file_path, "w") as f:
                 f.write(file_xml_string)
+
+    def add_entity(self, entities: Dict[str, Union[Robot, Object]], worldbody_frame: mujoco.MjsFrame):
+        for entity_name, entity in entities.items():
+            entity_spec: mujoco.MjSpec = mujoco.MjSpec.from_file(filename=entity.path)
+            entity_spec.compiler.degree = 0
+
+            fix_mesh_and_texture_paths(entity_spec, os.path.dirname(entity.path))
+
+            entity_model = mujoco.MjModel.from_xml_path(entity.path)
+            for body_name, body_apply in entity.apply.get("body", {}).items():
+                if isinstance(body_apply, dict):
+                    if mujoco.mj_version() >= 330:
+                        applied_body = entity_spec.body(body_name)
+                    else:
+                        applied_body = entity_spec.find_body(body_name)
+                    for apply_name, apply_data in body_apply.items():
+                        setattr(applied_body, apply_name, apply_data)
+                else:
+                    for applied_body in entity_spec.bodies:
+                        setattr(applied_body, body_name, body_apply)
+
+            for joint_name, joint_apply in entity.apply.get("joint", {}).items():
+                if isinstance(joint_apply, dict):
+                    if joint_name.isdigit():
+                        joint_id = int(joint_name)
+                    else:
+                        joint_id = entity_model.joint(joint_name).id
+                    applied_joint = entity_spec.joints[joint_id]
+                    for apply_name, apply_data in joint_apply.items():
+                        setattr(applied_joint, apply_name, apply_data)
+                else:
+                    for applied_joint in entity_spec.joints:
+                        setattr(applied_joint, joint_name, joint_apply)
+
+            for geom_name, geom_apply in entity.apply.get("geom", {}).items():
+                if isinstance(geom_apply, dict):
+                    if geom_name.isdigit():
+                        geom_id = int(geom_name)
+                    else:
+                        geom_id = entity_model.geom(geom_name).id
+                    applied_geom = entity_spec.geoms[geom_id]
+                    for apply_name, apply_data in geom_apply.items():
+                        setattr(applied_geom, apply_name, apply_data)
+                else:
+                    for applied_geom in entity_spec.geoms:
+                        setattr(applied_geom, geom_name, geom_apply)
+
+            entity_model = entity_spec.compile()
+            entity_data = mujoco.MjData(entity_model)
+            mujoco.mj_step1(entity_model, entity_data)
+
+            if entity.disable_self_collision != "off":
+                if entity.disable_self_collision == "auto":
+                    body_collision_dict = {}
+                    for geom1_id, geom2_id in zip(entity_data.contact.geom1, entity_data.contact.geom2):
+                        body1_id = entity_model.geom(geom1_id).bodyid[0]
+                        body1_name = entity_model.body(body1_id).name
+                        body2_id = entity_model.geom(geom2_id).bodyid[0]
+                        body2_name = entity_model.body(body2_id).name
+                        body_collision_dict[body1_name] = body_collision_dict.get(body1_name, set()).union({body2_name})
+                    for body1_name, body2_names in body_collision_dict.items():
+                        for body2_name in body2_names:
+                            if not any(exclude.bodyname1 in {body1_name, body2_name} or
+                                    exclude.bodyname2 in {body1_name, body2_name} for exclude in entity_spec.excludes):
+                                entity_spec.add_exclude(name=f"{body1_name}_{body2_name}",
+                                                        bodyname1=body1_name,
+                                                        bodyname2=body2_name)
+                elif entity.disable_self_collision == "on":
+                    for body_1 in entity_spec.bodies:
+                        for body_2 in entity_spec.bodies:
+                            if body_1 != body_2:
+                                entity_spec.add_exclude(name=f"{body_1.name}_{body_2.name}",
+                                                        bodyname1=body_1.name,
+                                                        bodyname2=body_2.name)
+
+            entity_root_name = list(entity_spec.bodies)[1].name
+            if mujoco.mj_version() >= 330:
+                child_body = entity_spec.body(entity_root_name)
+            else:
+                child_body = entity_spec.find_body(entity_root_name)
+            worldbody_frame.attach_body(child_body, f"{entity_name}_", f"")
 
     def fix_prefix_and_suffix(self, entities: Dict[str, Union[Robot, Object]]):
         for entity_name, entity in entities.items():
@@ -224,8 +244,6 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
                 elif entity_type == "joint":
                     if len(self.world_spec.tendons) > 0 or len(self.world_spec.actuators) > 0 or len(
                             self.world_spec.sensors) > 0:  # TODO: Waiting for MuJoCo update
-                        for key in self.world_spec.keys[:-1]:
-                            key.delete()
                         self.world_spec.compile()
                         xml_string = self.world_spec.to_xml()
                         with open(self.save_file_path, "w") as f:
@@ -271,13 +289,12 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
                                                                         entity_name)
                             equality.name2 = fix_prefix_and_suffix_each(equality.name2, entity_prefix, entity_suffix,
                                                                         entity_name)
-                elif entity_type == "key":
-                    for key in self.world_spec.keys:
-                        key.name = fix_prefix_and_suffix_each(key.name, entity_prefix, entity_suffix, entity_name)
+                # elif entity_type == "key":
+                #     for key in self.world_spec.keys:
+                #         key.name = fix_prefix_and_suffix_each(key.name, entity_prefix, entity_suffix, entity_name)
 
     def add_references(self, references: Dict[str, Dict[str, Any]]):
         world_model = self.world_spec.compile()
-        home_key = self.world_spec.keys[0]
         world_data = mujoco.MjData(world_model)
         for reference_name, reference in references.items():
             body_ref_name = reference.get("body1", None)
@@ -291,7 +308,7 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
             else:
                 body_ref = self.world_spec.find_body(body_ref_name)
             if body_ref is None:
-                mujoco.mj_resetData(world_model, world_data)
+                mujoco.mj_resetDataKeyframe(world_model, world_data, 0)
                 mujoco.mj_step(world_model, world_data)
                 body = world_data.body(body_name)
                 if body is None:
@@ -324,12 +341,6 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
                         conaffinity=0,
                         contype=0,
                     )
-
-                mujoco.mj_resetDataKeyframe(world_model, world_data, 0)
-                mujoco.mj_step(world_model, world_data)
-                body = world_data.body(body_name)
-                home_key.mpos = numpy.append(home_key.mpos, body.xpos)
-                home_key.mquat = numpy.append(home_key.mquat, body.xquat)
             equality: mujoco.MjsEquality = self.world_spec.add_equality()
             equality.type = mujoco.mjtEq.mjEQ_WELD
             equality.name = reference_name
