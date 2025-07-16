@@ -519,7 +519,8 @@ class MultiverseSimulator:
                 self._viewer.logger.log_data(new_data=self._viewer.read_data)
         else:
             self.step_callback()
-        self._current_number_of_steps += 1
+        if self.state == MultiverseSimulatorState.RUNNING:
+            self._current_number_of_steps += 1
 
     def write_data_to_simulator(self, write_data: numpy.ndarray):
         """
@@ -610,18 +611,18 @@ class MultiverseSimulator:
 
     def pre_step_callback(self):
         if self._viewer is not None:
-            self.__update_objects(self._viewer.write_objects, self._write_objects, self._write_ids)
-            self.__update_objects(self._viewer.read_objects, self._read_objects, self._read_ids)
-
-    def __update_objects(self, viewer_objects, cache_objects, object_ids):
-        if self.__should_process_objects(viewer_objects, cache_objects):
-            self._process_objects(viewer_objects, object_ids)
-            cache_objects.update(viewer_objects)
+            if self.__should_process_objects(self._viewer.write_objects, self._write_objects):
+                self._process_objects(self._viewer.write_objects, self._write_ids)
+                self._write_objects = self._viewer.write_objects
+            if self.__should_process_objects(self._viewer.read_objects, self._read_objects):
+                self._process_objects(self._viewer.read_objects, self._read_ids)
+                self._read_objects = self._viewer.read_objects
 
     @staticmethod
     def __should_process_objects(viewer_objects, cache_objects):
-        if viewer_objects == {} and cache_objects != {}:
-            return True
+        for name, attrs in cache_objects.items():
+            if name not in viewer_objects or any(attr_name not in viewer_objects[name] for attr_name in attrs):
+                return True
         for name, attrs in viewer_objects.items():
             if name not in cache_objects or any(attr_name not in cache_objects[name] for attr_name in attrs):
                 return True
