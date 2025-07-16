@@ -484,8 +484,7 @@ class MultiverseSimulator:
                     self._state = MultiverseSimulatorState.STOPPED
                     break
                 if self.state == MultiverseSimulatorState.RUNNING:
-                    if self.current_simulation_time == 0.0 or not numpy.isclose(
-                            self.current_number_of_steps * self.step_size, self.current_simulation_time):
+                    if self.current_simulation_time == 0.0:
                         self.reset()
                     if self.real_time_factor > 0:
                         real_time_pass = self.current_real_time - self.start_real_time
@@ -519,8 +518,10 @@ class MultiverseSimulator:
                 self._viewer.logger.log_data(new_data=self._viewer.read_data)
         else:
             self.step_callback()
-        if self.state == MultiverseSimulatorState.RUNNING:
-            self._current_number_of_steps += 1
+        if not numpy.isclose(
+                self.current_number_of_steps * self.step_size, self.current_simulation_time):
+            self.log_error(f"Simulation time {self.current_simulation_time} is inconsistent with "
+                           f"number of steps {self.current_number_of_steps} and step size {self.step_size}")
 
     def write_data_to_simulator(self, write_data: numpy.ndarray):
         """

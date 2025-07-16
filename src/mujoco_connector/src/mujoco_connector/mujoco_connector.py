@@ -179,11 +179,13 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             if self.render_thread is not None:
                 with self.renderer.lock():
                     if self.state == MultiverseSimulatorState.RUNNING:
+                        self._current_number_of_steps += 1
                         mujoco.mj_step(self._mj_model, self._mj_data)
                     elif self.state == MultiverseSimulatorState.PAUSED:
                         mujoco.mj_kinematics(self._mj_model, self._mj_data)
             else:
                 if self.state == MultiverseSimulatorState.RUNNING:
+                    self._current_number_of_steps += 1
                     mujoco.mj_step(self._mj_model, self._mj_data)
                 elif self.state == MultiverseSimulatorState.PAUSED:
                     mujoco.mj_kinematics(self._mj_model, self._mj_data)
