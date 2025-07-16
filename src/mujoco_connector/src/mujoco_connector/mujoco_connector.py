@@ -15,7 +15,7 @@ import numpy
 from mujoco import mjx
 
 from multiverse_simulator import (MultiverseSimulator, MultiverseRenderer, MultiverseViewer,
-                                  MultiverseCallback, MultiverseCallbackResult)
+                                  MultiverseCallback, MultiverseCallbackResult, MultiverseSimulatorState)
 from .utills import get_multiverse_connector_plugins
 
 
@@ -178,9 +178,17 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         else:
             if self.render_thread is not None:
                 with self.renderer.lock():
-                    mujoco.mj_step(self._mj_model, self._mj_data)
+                    if self.state == MultiverseSimulatorState.RUNNING:
+                        self._current_number_of_steps += 1
+                        mujoco.mj_step(self._mj_model, self._mj_data)
+                    elif self.state == MultiverseSimulatorState.PAUSED:
+                        mujoco.mj_kinematics(self._mj_model, self._mj_data)
             else:
-                mujoco.mj_step(self._mj_model, self._mj_data)
+                if self.state == MultiverseSimulatorState.RUNNING:
+                    self._current_number_of_steps += 1
+                    mujoco.mj_step(self._mj_model, self._mj_data)
+                elif self.state == MultiverseSimulatorState.PAUSED:
+                    mujoco.mj_kinematics(self._mj_model, self._mj_data)
 
     def reset_callback(self):
         mujoco.mj_resetDataKeyframe(self._mj_model, self._mj_data, 0)
