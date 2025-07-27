@@ -91,6 +91,9 @@ class MultiverseSimulatorCompiler:
     def create_world(self):
         if not os.path.exists(self.save_dir_path):
             os.makedirs(self.save_dir_path)
+        self.copy_world()
+
+    def copy_world(self):
         shutil.copy(self.world_path, self.save_file_path)
 
 

@@ -135,6 +135,21 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
     def __init__(self, args):
         super().__init__(args)
 
+    def copy_world(self):
+        tree = ET.parse(self.world_path)
+        root = tree.getroot()
+        for include_elem in root.findall(".//include"):
+            file_attr = include_elem.get("file")
+            if file_attr and not os.path.isabs(file_attr):
+                abs_path = os.path.abspath(os.path.join(os.path.dirname(self.world_path), file_attr))
+                include_elem.set("file", abs_path)
+        for compiler_elem in root.findall(".//compiler"):
+            meshdir_attr = compiler_elem.get("meshdir")
+            if meshdir_attr and not os.path.isabs(meshdir_attr):
+                abs_path = os.path.abspath(os.path.join(os.path.dirname(self.world_path), meshdir_attr))
+                compiler_elem.set("meshdir", abs_path)
+        tree.write(self.save_file_path)
+
     def build_world(self,
                     robots: Dict[str, Robot],
                     objects: Dict[str, Object],
