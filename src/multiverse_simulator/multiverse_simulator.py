@@ -510,6 +510,7 @@ class MultiverseSimulator:
     def step(self):
         """Step the simulator"""
         self.pre_step_callback()
+        last_simulation_time = self.current_simulation_time
         if self._viewer is not None:
             self.write_data_to_simulator(write_data=self._viewer.write_data)
             self.step_callback()
@@ -518,6 +519,8 @@ class MultiverseSimulator:
                 self._viewer.logger.log_data(new_data=self._viewer.read_data)
         else:
             self.step_callback()
+        if not numpy.isclose(self.current_simulation_time - last_simulation_time, self.step_size):
+            self.reset()
         if not numpy.isclose(
                 self.current_number_of_steps * self.step_size, self.current_simulation_time):
             if numpy.isclose(self.current_simulation_time, self.step_size):
