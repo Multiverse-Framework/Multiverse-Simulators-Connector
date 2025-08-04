@@ -6,7 +6,7 @@ import argparse
 import dataclasses
 import os
 import shutil
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .utils import str_to_dict
 
 
@@ -84,8 +84,8 @@ class MultiverseSimulatorCompiler:
     def build_world(self,
                     robots: Dict[str, Robot],
                     objects: Dict[str, Object],
-                    references: Dict[str, Dict[str, Any]] = None,
-                    multiverse_params: Dict[str, Dict] = None):
+                    references: Optional[Dict[str, Dict[str, Any]]] = None,
+                    multiverse_params: Optional[Dict[str, Dict]] = None):
         raise NotImplementedError("build_world method must be implemented")
 
     def create_world(self):

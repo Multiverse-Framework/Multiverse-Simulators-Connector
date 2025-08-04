@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import numpy
 import shutil
@@ -20,8 +20,8 @@ class IsaacSimCompiler(MultiverseSimulatorCompiler):
     def build_world(self,
                     robots: Dict[str, Robot],
                     objects: Dict[str, Object],
-                    references: Dict[str, Dict[str, Any]] = None,
-                    multiverse_params: Dict[str, Dict] = None):
+                    references: Optional[Dict[str, Dict[str, Any]]] = None,
+                    multiverse_params: Optional[Dict[str, Dict]] = None):
         from pxr import Usd, UsdGeom, UsdPhysics, Gf, Sdf  # Ask NVIDIA for this shitty importing style
 
         for entity in list(robots.values()) + list(objects.values()):

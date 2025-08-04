@@ -3,7 +3,7 @@
 import os
 import sys
 import xml.etree.ElementTree as ET
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Optional
 
 current_dir = os.path.dirname(__file__)
 lib_dir = os.path.abspath(os.path.join(current_dir, '..', 'src'))
@@ -67,8 +67,8 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
     def build_world(self,
                     robots: Dict[str, Robot],
                     objects: Dict[str, Object],
-                    references: Dict[str, Dict[str, Any]] = None,
-                    multiverse_params: Dict[str, Dict] = None):
+                    references: Optional[Dict[str, Dict[str, Any]]] = None,
+                    multiverse_params: Optional[Dict[str, Dict]] = None):
         self.world_spec = mujoco.MjSpec.from_file(filename=self.save_file_path)
         self.world_spec.compiler.degree = 0
         save_file_name = os.path.basename(self.save_file_path)
