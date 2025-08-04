@@ -68,10 +68,14 @@ def main():
                             help="Maximum number of steps")
         parser.add_argument("--max_simulation_time", type=float, required=False, default=None,
                             help="Maximum simulation time")
-        parser.add_argument("--multiverse_params", type=str, required=False, default=None, help="JSON string with multiverse' data")
-        parser.add_argument("--read_objects", type=str, required=False, default=None, help="JSON string with read objects")
-        parser.add_argument("--logging_interval", type=float, required=False, default=-1.0, help="Logging interval in seconds")
-        parser.add_argument("--save_log_path", type=str, required=False, default="data.csv", help="Path to save log file")
+        parser.add_argument("--multiverse_params", type=str, required=False, default=None, 
+                            help="JSON string with multiverse' data")
+        parser.add_argument("--read_objects", type=str, required=False, default=None, 
+                            help="JSON string with read objects")
+        parser.add_argument("--logging_interval", type=float, required=False, default=-1.0, 
+                            help="Logging interval in seconds")
+        parser.add_argument("--save_log_path", type=str, required=False, default="data.csv", 
+                            help="Path to save log file")
 
         args, unknown = parser.parse_known_args()
 
