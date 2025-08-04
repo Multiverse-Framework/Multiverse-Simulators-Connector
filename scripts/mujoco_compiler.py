@@ -29,7 +29,7 @@ def fix_mesh_and_texture_paths(spec: mujoco.MjSpec, default_path: str):
     for mesh in spec.meshes:
         if not os.path.isabs(mesh.file):
             mesh.file = os.path.join(meshdir_abs, mesh.file)
-    for texture in spec.meshes:
+    for texture in spec.textures:
         if not os.path.isabs(texture.file):
             texture.file = os.path.join(texturedir_abs, texture.file)
 
@@ -62,6 +62,10 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
             if meshdir_attr and not os.path.isabs(meshdir_attr):
                 abs_path = os.path.abspath(os.path.join(os.path.dirname(self.world_path), meshdir_attr))
                 compiler_elem.set("meshdir", abs_path)
+            texturedir_attr = compiler_elem.get("texturedir")
+            if texturedir_attr and not os.path.isabs(texturedir_attr):
+                abs_path = os.path.abspath(os.path.join(os.path.dirname(self.world_path), texturedir_attr))
+                compiler_elem.set("texturedir", abs_path)
         tree.write(self.save_file_path)
 
     def build_world(self,
