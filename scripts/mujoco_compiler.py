@@ -121,9 +121,7 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
         self.add_references(references)
         self.world_spec.compile()
 
-        xml_string = self.world_spec.to_xml()
-        with open(self.save_file_path, "w") as f:
-            f.write(xml_string)
+        self.world_spec.to_file(self.save_file_path)
 
         if multiverse_params != {}:
             tree = ET.parse(self.save_file_path)
@@ -260,9 +258,7 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
                     if len(self.world_spec.tendons) > 0 or len(self.world_spec.actuators) > 0 or len(
                             self.world_spec.sensors) > 0:  # TODO: Waiting for MuJoCo update
                         self.world_spec.compile()
-                        xml_string = self.world_spec.to_xml()
-                        with open(self.save_file_path, "w") as f:
-                            f.write(xml_string)
+                        self.world_spec.to_file(self.save_file_path)
 
                         tree = ET.parse(self.save_file_path)
                         root = tree.getroot()
