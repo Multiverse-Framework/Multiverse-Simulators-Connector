@@ -61,6 +61,30 @@ class GazeboCompiler(MultiverseSimulatorCompiler):
         with open(self.save_file_path, 'w') as f:
             f.write(file_xml_string)
 
+        if multiverse_params != {} and multiverse_params is not None:
+            print(multiverse_params)
+            tree = ET.parse(self.save_file_path)
+            plugin = f"""
+                <plugin filename="MultiverseConnector">
+                    <host>{multiverse_params['host']}</host>
+                    <server_port>{multiverse_params['server_port']}</server_port>
+                    <client_port>{multiverse_params['client_port']}</client_port>
+                    <world_name>{multiverse_params['world_name']}</world_name>
+                    <simulation_name>{multiverse_params['simulation_name']}</simulation_name>
+                    <send>{multiverse_params['send']}</send>
+                    <receive>{multiverse_params['receive']}</receive>
+                </plugin>
+                """
+            root = tree.getroot()
+            world_element = root.find("world")
+            if world_element is None:
+                raise ValueError("World element not found in the SDF file")
+            world_element.append(ET.fromstring(plugin))
+            ET.indent(root)
+            file_xml_string = ET.tostring(root, encoding='unicode', method='xml')
+            with open(self.save_file_path, "w") as f:
+                f.write(file_xml_string)
+
 
 if __name__ == "__main__":
     multiverse_simulator_compiler_main(GazeboCompiler)

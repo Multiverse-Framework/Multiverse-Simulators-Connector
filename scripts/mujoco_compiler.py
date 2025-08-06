@@ -122,12 +122,14 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
                             key_ctrl[i] = key.ctrl[i]
                     self.world_spec.keys[0].ctrl = key_ctrl
         self.world_spec.compile()
-        self.add_references(references)
-        self.world_spec.compile()
+
+        if references is not None and references != {}:
+            self.add_references(references)
+            self.world_spec.compile()
 
         self.world_spec.to_file(self.save_file_path)
 
-        if multiverse_params != {}:
+        if multiverse_params is not None and multiverse_params != {}:
             tree = ET.parse(self.save_file_path)
             root = tree.getroot()
             include_extension = f"""
