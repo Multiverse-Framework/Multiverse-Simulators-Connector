@@ -25,13 +25,87 @@ class GazeboCompiler(MultiverseSimulatorCompiler):
     def __init__(self, args):
         super().__init__(args)
 
+    def apply(
+        self,
+        apply_data: Dict[str, Any],
+        entity_root: ET.Element,
+        include_element: ET.Element,
+        entity_name: Optional[str] = None,
+    ):
+        entity_model = entity_root.find("model")
+        if "body" in apply_data:
+            for body_name, body_data in apply_data["body"].items():
+                if isinstance(body_data, dict):
+                    link_element = entity_root.find(f".//link[@name='{body_name}']")
+                    if link_element is None:
+                        continue
+                    for attribute_name, attribute_value in body_data.items():
+                        if attribute_name in ["pos", "quat"]:
+                            continue
+                        attribute_element = ET.SubElement(
+                            link_element, attribute_name
+                        )
+                        attribute_element.text = (
+                            attribute_value
+                            if isinstance(attribute_value, str)
+                            else (
+                                " ".join([*attribute_value])
+                                if isinstance(attribute_value, (list, tuple))
+                                else str(attribute_value)
+                            )
+                        )
+                elif isinstance(body_data, str):
+                    for link_element in entity_root.findall(".//link"):
+                        pose_element = ET.SubElement(link_element, body_name)
+                        pose_element.text = body_data
+            entity_root_name = None
+            if entity_model is not None:
+                entity_root_name = entity_model.get("name", entity_name)
+                pos = [0.0, 0.0, 0.0]
+                quat = [1.0, 0.0, 0.0, 0.0]
+                if entity_root_name in apply_data["body"]:
+                    pos = apply_data["body"][entity_root_name].get(
+                        "pos", [0.0, 0.0, 0.0]
+                    )
+                    quat = apply_data["body"][entity_root_name].get(
+                        "quat", [1.0, 0.0, 0.0, 0.0]
+                    )
+                euler = [
+                    *R.from_quat(quat, scalar_first=True).as_euler(
+                        "xyz", degrees=False
+                    )
+                ]
+                pose = " ".join([str(p) for p in pos + euler])
+                pose_element = ET.SubElement(include_element, "pose")
+                pose_element.text = pose
+
+    def apply_suffix_prefix(
+        self,
+        suffix: Dict[str, str],
+        prefix: Dict[str, str],
+        entity_root: ET.Element,
+    ):
+        for link_element in entity_root.findall(".//link"):
+            link_name = link_element.get("name", "")
+            link_element.set("name", f"{link_name}{suffix.get(link_name, '')}")
+            pose_element = link_element.find("pose")
+            if pose_element is not None:
+                pose_relative_to = pose_element.get("relative_to", None)
+                if pose_relative_to is not None:
+                    pose_element.set(
+                        "relative_to",
+                        f"{prefix.get('joint', '')}{pose_relative_to}{suffix.get('joint', '')}",
+                    )
+        for joint_element in entity_root.findall(".//joint"):
+            joint_name = joint_element.get("name", "")
+            joint_element.set("name", f"{prefix.get('joint', '')}{joint_name}{suffix.get('joint', '')}")
+
     def add_entity(
         self,
         entity: Union[Dict[str, Robot], Dict[str, Object]],
         world_element: ET.Element,
     ):
         for entity_name, entity_data in entity.items():
-            print(f"Adding entity: {entity_name}")
             entity_file_name = os.path.basename(entity_data.path)
             entity_file_path = os.path.join(self.save_dir_path, entity_file_name)
             shutil.copy(entity_data.path, entity_file_path)
@@ -51,53 +125,11 @@ class GazeboCompiler(MultiverseSimulatorCompiler):
                     )
                     if os.path.exists(entity_file_abspath):
                         uri_element.text = entity_file_abspath
-            entity_model = entity_root.find("model")
             apply_data = entity_data.apply
-            if "body" in apply_data:
-                for body_name, body_data in apply_data["body"].items():
-                    if isinstance(body_data, dict):
-                        link_element = entity_root.find(f".//link[@name='{body_name}']")
-                        if link_element is None:
-                            continue
-                        for attribute_name, attribute_value in body_data.items():
-                            if attribute_name in ["pos", "quat"]:
-                                continue
-                            attribute_element = ET.SubElement(
-                                link_element, attribute_name
-                            )
-                            attribute_element.text = (
-                                attribute_value
-                                if isinstance(attribute_value, str)
-                                else (
-                                    " ".join([*attribute_value])
-                                    if isinstance(attribute_value, (list, tuple))
-                                    else str(attribute_value)
-                                )
-                            )
-                    elif isinstance(body_data, str):
-                        for link_element in entity_root.findall(".//link"):
-                            pose_element = ET.SubElement(link_element, body_name)
-                            pose_element.text = body_data
-                entity_root_name = None
-                if entity_model is not None:
-                    entity_root_name = entity_model.get("name", entity_name)
-                    pos = [0.0, 0.0, 0.0]
-                    quat = [1.0, 0.0, 0.0, 0.0]
-                    if entity_root_name in apply_data["body"]:
-                        pos = apply_data["body"][entity_root_name].get(
-                            "pos", [0.0, 0.0, 0.0]
-                        )
-                        quat = apply_data["body"][entity_root_name].get(
-                            "quat", [1.0, 0.0, 0.0, 0.0]
-                        )
-                    euler = [
-                        *R.from_quat(quat, scalar_first=True).as_euler(
-                            "xyz", degrees=False
-                        )
-                    ]
-                    pose = " ".join([str(p) for p in pos + euler])
-                    pose_element = ET.SubElement(include_element, "pose")
-                    pose_element.text = pose
+
+            self.apply(apply_data, entity_root, include_element, entity_name)
+            self.apply_suffix_prefix(entity_data.suffix, entity_data.prefix, entity_root)
+            
             ET.indent(entity_root)
             entity_tree.write(entity_file_path, encoding="utf-8", xml_declaration=True)
 
