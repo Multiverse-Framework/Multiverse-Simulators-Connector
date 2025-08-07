@@ -78,6 +78,31 @@ class GazeboCompiler(MultiverseSimulatorCompiler):
                 pose = " ".join([str(p) for p in pos + euler])
                 pose_element = ET.SubElement(include_element, "pose")
                 pose_element.text = pose
+        if "joint" in apply_data:
+            for joint_name, joint_data in apply_data["joint"].items():
+                if isinstance(joint_data, dict):
+                    joint_element = entity_root.find(f".//joint[@name='{joint_name}']")
+                    if joint_element is None:
+                        continue
+                    for attribute_name, attribute_value in joint_data.items():
+                        if attribute_name in ["damping", "friction"]:
+                            dynamics_element = joint_element.find("./axis/dynamics")
+                            if dynamics_element is None:
+                                dynamics_element = ET.SubElement(joint_element, "./axis/dynamics")
+                            attribute_element = dynamics_element.find(attribute_name)
+                            if attribute_element is None:
+                                attribute_element = ET.SubElement(dynamics_element, attribute_name)
+                            attribute_element.text = attribute_value
+                elif isinstance(joint_data, str) or isinstance(joint_data, float):
+                    if joint_name in ["damping", "friction"]:
+                        for joint_element in entity_root.findall(".//joint"):
+                            dynamics_element = joint_element.find("./axis/dynamics")
+                            if dynamics_element is None:
+                                dynamics_element = ET.SubElement(joint_element, "./axis/dynamics")
+                            attribute_element = dynamics_element.find(joint_name)
+                            if attribute_element is None:
+                                attribute_element = ET.SubElement(dynamics_element, joint_name)
+                            attribute_element.text = str(joint_data)
 
     def apply_suffix_prefix(
         self,

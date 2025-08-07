@@ -350,7 +350,7 @@ class MujocoCompiler(MultiverseSimulatorCompiler):
                         name=geom_name,
                         type=geom.type,
                         size=geom.size,
-                        rgba=[0, 1, 0, 1],
+                        rgba=[0, 1, 0, 0],
                         pos=geom.pos,
                         quat=geom.quat,
                         meshname=geom.meshname,
