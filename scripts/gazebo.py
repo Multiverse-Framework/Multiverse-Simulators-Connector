@@ -60,7 +60,7 @@ def main():
             help="Real time factor",
         )
         parser.add_argument(
-            "--step_size", type=float, required=False, default=0.01, help="Step size"
+            "--step_size", type=float, required=False, default=0.001, help="Step size"
         )
         parser.add_argument(
             "--max_real_time",
@@ -128,7 +128,7 @@ def main():
         real_time_update_rate = physics_element.find("real_time_update_rate")
         if real_time_update_rate is None:
             real_time_update_rate = ET.SubElement(physics_element, "real_time_update_rate")
-        real_time_update_rate.text = str(1.0 / args.real_time_factor)
+        real_time_update_rate.text = str(1.0 / args.step_size)
         real_time_factor = physics_element.find("real_time_factor")
         if real_time_factor is None:
             real_time_factor = ET.SubElement(physics_element, "real_time_factor")

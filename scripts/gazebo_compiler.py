@@ -117,6 +117,19 @@ class GazeboCompiler(MultiverseSimulatorCompiler):
         for joint_element in entity_root.findall(".//joint"):
             joint_name = joint_element.get("name", "")
             joint_element.set("name", f"{prefix.get('joint', '')}{joint_name}{suffix.get('joint', '')}")
+            for pose_element in joint_element.findall(".//pose"):
+                relative_to = pose_element.get("relative_to", None)
+                assert relative_to is not None, "Pose element must have a 'relative_to' attribute"
+                pose_element.set(
+                    "relative_to",
+                    f"{prefix.get('body', '')}{relative_to}{suffix.get('body', '')}",
+                )
+            for parent_element in joint_element.findall(".//parent"):
+                parent_name = parent_element.text
+                parent_element.text = f"{prefix.get('body', '')}{parent_name}{suffix.get('body', '')}"
+            for child_element in joint_element.findall(".//child"):
+                child_name = child_element.text
+                child_element.text = f"{prefix.get('body', '')}{child_name}{suffix.get('body', '')}"
 
     def add_entity(
         self,
