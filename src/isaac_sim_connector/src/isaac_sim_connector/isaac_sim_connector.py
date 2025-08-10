@@ -213,14 +213,14 @@ class MultiverseIsaacSimConnector(MultiverseSimulator):
         attr_map = {
             "position": "body_pos_w",
             "quaternion": "body_quat_w",
-            "joint_rvalue": "joint_pos",
-            "joint_tvalue": "joint_pos",
+            "joint_angular_position": "joint_pos",
+            "joint_linear_position": "joint_pos",
             "joint_angular_velocity": "joint_vel",
             "joint_linear_velocity": "joint_vel",
-            "cmd_joint_rvalue": "joint_pos_target",
+            "cmd_joint_angular_position": "joint_pos_target",
             "cmd_joint_angular_velocity": "joint_vel_target",
             "cmd_joint_torque": "joint_effort_target",
-            "cmd_joint_tvalue": "joint_pos_target",
+            "cmd_joint_linear_position": "joint_pos_target",
             "cmd_joint_linear_velocity": "joint_vel_target",
             "cmd_joint_force": "joint_effort_target"
         }

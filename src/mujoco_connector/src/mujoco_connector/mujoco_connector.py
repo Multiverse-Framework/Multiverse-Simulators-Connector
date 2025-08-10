@@ -121,16 +121,16 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         attr_map = {
             "position": "xpos",
             "quaternion": "xquat",
-            "joint_rvalue": "qpos",
-            "joint_tvalue": "qpos",
+            "joint_angular_position": "qpos",
+            "joint_linear_position": "qpos",
             "joint_angular_velocity": "qvel",
             "joint_linear_velocity": "qvel",
             "joint_torque": "qfrc_applied",
             "joint_force": "qfrc_applied",
-            "cmd_joint_rvalue": "ctrl",
+            "cmd_joint_angular_position": "ctrl",
             "cmd_joint_angular_velocity": "ctrl",
             "cmd_joint_torque": "ctrl",
-            "cmd_joint_tvalue": "ctrl",
+            "cmd_joint_linear_position": "ctrl",
             "cmd_joint_linear_velocity": "ctrl",
             "cmd_joint_force": "ctrl",
             "energy": "energy",
@@ -156,12 +156,12 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                     mj_attr_id = self._mj_model.body(name).id
                     if attr_name == "energy" and name != "world":
                         raise NotImplementedError("Not supported")
-                elif attr_name in {"joint_rvalue", "joint_tvalue"}:
+                elif attr_name in {"joint_angular_position", "joint_linear_position"}:
                     mj_attr_id = self._mj_model.joint(name).qposadr[0]
                 elif attr_name in {"joint_angular_velocity", "joint_linear_velocity", "joint_torque", "joint_force"}:
                     mj_attr_id = self._mj_model.joint(name).dofadr[0]
-                elif attr_name in {"cmd_joint_rvalue", "cmd_joint_angular_velocity", "cmd_joint_torque",
-                                   "cmd_joint_tvalue", "cmd_joint_linear_velocity", "cmd_joint_force"}:
+                elif attr_name in {"cmd_joint_angular_position", "cmd_joint_angular_velocity", "cmd_joint_torque",
+                                   "cmd_joint_linear_position", "cmd_joint_linear_velocity", "cmd_joint_force"}:
                     mj_attr_id = self._mj_data.actuator(name).id
                 else:
                     raise ValueError(f"Unknown attribute {attr_name} for {name}")

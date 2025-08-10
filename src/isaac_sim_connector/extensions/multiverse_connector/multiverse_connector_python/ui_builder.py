@@ -256,8 +256,8 @@ class UIBuilder(MultiverseConnector):
                         prims["prismatic_joint"].append(prim)
                 attributes = {
                     "body": ["position", "quaternion", "relative_velocity"],
-                    "revolute_joint": ["joint_rvalue", "joint_angular_velocity", "joint_torque", "cmd_joint_rvalue", "cmd_joint_angular_velocity", "cmd_joint_torque"],
-                    "prismatic_joint": ["joint_tvalue", "joint_linear_velocity", "joint_force", "cmd_joint_tvalue", "cmd_joint_linear_velocity", "cmd_joint_force"]
+                    "revolute_joint": ["joint_angular_position", "joint_angular_velocity", "joint_torque", "cmd_joint_angular_position", "cmd_joint_angular_velocity", "cmd_joint_torque"],
+                    "prismatic_joint": ["joint_linear_position", "joint_linear_velocity", "joint_force", "cmd_joint_linear_position", "cmd_joint_linear_velocity", "cmd_joint_force"]
                 }
                 titles = {
                     "body": "Bodies",
@@ -669,9 +669,9 @@ class UIBuilder(MultiverseConnector):
                     else:
                         raise Exception(f"Joint {prim_path.pathString} not found in any view")
                     for attribute in attributes:
-                        if attribute == "joint_rvalue":
+                        if attribute == "joint_angular_position":
                             value = joints_states[articulation_view_name].positions[0][joint_idx]
-                        elif attribute == "joint_tvalue":
+                        elif attribute == "joint_linear_position":
                             value = joints_states[articulation_view_name].positions[0][joint_idx]
                         elif attribute == "joint_linear_velocity":
                             value = joints_states[articulation_view_name].velocities[0][joint_idx]
@@ -785,7 +785,7 @@ class UIBuilder(MultiverseConnector):
                     articulation_view_name, joint_idx = self._object_articulation_view_idx_dict[prim_path]
                     for attribute in attributes:
                         cmd_joints_values[articulation_view_name][joint_idx] = [0.0, 0.0, 0.0]
-                        if attribute in ["cmd_joint_rvalue", "cmd_joint_tvalue"]:
+                        if attribute in ["cmd_joint_angular_position", "cmd_joint_linear_position"]:
                             cmd_joint_value = receive_data[0]
                             receive_data = receive_data[1:]
                             cmd_joints_values[articulation_view_name][joint_idx][0] = cmd_joint_value

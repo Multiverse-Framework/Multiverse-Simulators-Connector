@@ -388,26 +388,26 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
     def test_running_in_10s_with_viewer(self):
         write_objects = {
             "actuator1": {
-                "cmd_joint_rvalue": [0.0]
+                "cmd_joint_angular_position": [0.0]
             },
             "actuator2": {
-                "cmd_joint_rvalue": [0.0]
+                "cmd_joint_angular_position": [0.0]
             },
         }
         read_objects = {
             "joint1": {
-                "joint_rvalue": [0.0],
+                "joint_angular_position": [0.0],
                 "joint_angular_velocity": [0.0]
             },
             "joint2": {
-                "joint_rvalue": [0.0],
+                "joint_angular_position": [0.0],
                 "joint_angular_velocity": [0.0]
             },
             "actuator1": {
-                "cmd_joint_rvalue": [0.0]
+                "cmd_joint_angular_position": [0.0]
             },
             "actuator2": {
-                "cmd_joint_rvalue": [0.0]
+                "cmd_joint_angular_position": [0.0]
             },
             "world": {
                 "energy": [0.0, 0.0]
@@ -427,16 +427,16 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
                 viewer.write_data = numpy.array([[act_1_value, act_2_value]])
             else:
                 write_objects = viewer.write_objects
-                write_objects["actuator1"]["cmd_joint_rvalue"].values[0][0] = act_1_value
-                write_objects["actuator2"]["cmd_joint_rvalue"].values[0][0] = act_2_value
+                write_objects["actuator1"]["cmd_joint_angular_position"].values[0][0] = act_1_value
+                write_objects["actuator2"]["cmd_joint_angular_position"].values[0][0] = act_2_value
                 viewer.write_objects = write_objects
             use_write_data = not use_write_data
             time.sleep(0.01)
             self.assertEqual(viewer.read_data.shape, (1, 8))
             if simulator.current_simulation_time > 1.0:
-                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_rvalue"].values[0][0], act_1_value,
+                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_angular_position"].values[0][0], act_1_value,
                                        places=0)
-                self.assertAlmostEqual(viewer.read_objects["joint2"]["joint_rvalue"].values[0][0], act_2_value,
+                self.assertAlmostEqual(viewer.read_objects["joint2"]["joint_angular_position"].values[0][0], act_2_value,
                                        places=0)
         self.assertIs(simulator.state, MultiverseSimulatorState.STOPPED)
         save_file_path = os.path.join(resources_path, "../output/data.csv")
@@ -454,11 +454,11 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
             if step == 100:
                 read_objects = {
                     "joint1": {
-                        "joint_rvalue": [0.0],
+                        "joint_angular_position": [0.0],
                         "joint_angular_velocity": [0.0]
                     },
                     "joint2": {
-                        "joint_rvalue": [0.0],
+                        "joint_angular_position": [0.0],
                         "joint_angular_velocity": [0.0]
                     }
                 }
@@ -469,7 +469,7 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
                         "joint_angular_velocity": [0.0]
                     },
                     "joint2": {
-                        "joint_rvalue": [0.0],
+                        "joint_angular_position": [0.0],
                         "joint_torque": [0.0]
                     }
                 }
@@ -477,10 +477,10 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
             elif step == 102:
                 write_objects = {
                     "joint1": {
-                        "joint_rvalue": [1.0]
+                        "joint_angular_position": [1.0]
                     },
                     "actuator2": {
-                        "cmd_joint_rvalue": [2.0]
+                        "cmd_joint_angular_position": [2.0]
                     },
                     "box": {
                         "position": [1.1, 2.2, 3.3],
@@ -489,11 +489,11 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
                 }
                 read_objects = {
                     "joint1": {
-                        "joint_rvalue": [0.0],
+                        "joint_angular_position": [0.0],
                         "joint_angular_velocity": [0.0]
                     },
                     "actuator2": {
-                        "cmd_joint_rvalue": [0.0]
+                        "cmd_joint_angular_position": [0.0]
                     },
                     "box": {
                         "position": [0.0, 0.0, 0.0],
@@ -508,19 +508,19 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
             simulator.step()
             if step == 100:
                 self.assertEqual(viewer.read_data.shape, (1, 4))
-                self.assertEqual(viewer.read_objects["joint1"]["joint_rvalue"].values.shape, (1, 1))
-                self.assertEqual(viewer.read_objects["joint2"]["joint_rvalue"].values.shape, (1, 1))
+                self.assertEqual(viewer.read_objects["joint1"]["joint_angular_position"].values.shape, (1, 1))
+                self.assertEqual(viewer.read_objects["joint2"]["joint_angular_position"].values.shape, (1, 1))
                 self.assertEqual(viewer.read_objects["joint1"]["joint_angular_velocity"].values.shape, (1, 1))
                 self.assertEqual(viewer.read_objects["joint2"]["joint_angular_velocity"].values.shape, (1, 1))
             elif step == 101:
                 self.assertEqual(viewer.read_data.shape, (1, 3))
                 self.assertEqual(viewer.read_objects["joint1"]["joint_angular_velocity"].values.shape, (1, 1))
-                self.assertEqual(viewer.read_objects["joint2"]["joint_rvalue"].values.shape, (1, 1))
+                self.assertEqual(viewer.read_objects["joint2"]["joint_angular_position"].values.shape, (1, 1))
                 self.assertEqual(viewer.read_objects["joint2"]["joint_torque"].values.shape, (1, 1))
             elif step == 102:
                 self.assertEqual(viewer.write_data.shape, (1, 9))
-                self.assertEqual(viewer.write_objects["joint1"]["joint_rvalue"].values[0], (1.0,))
-                self.assertEqual(viewer.write_objects["actuator2"]["cmd_joint_rvalue"].values[0], (2.0,))
+                self.assertEqual(viewer.write_objects["joint1"]["joint_angular_position"].values[0], (1.0,))
+                self.assertEqual(viewer.write_objects["actuator2"]["cmd_joint_angular_position"].values[0], (2.0,))
                 self.assertEqual(viewer.write_objects["box"]["position"].values[0][0], 1.1)
                 self.assertEqual(viewer.write_objects["box"]["position"].values[0][1], 2.2)
                 self.assertEqual(viewer.write_objects["box"]["position"].values[0][2], 3.3)
@@ -529,8 +529,8 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
                 self.assertEqual(viewer.write_objects["box"]["quaternion"].values[0][2], 0.707)
                 self.assertEqual(viewer.write_objects["box"]["quaternion"].values[0][3], 0.0)
                 self.assertEqual(viewer.read_data.shape, (1, 10))
-                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_rvalue"].values[0][0], 1.0, places=3)
-                self.assertEqual(viewer.read_objects["actuator2"]["cmd_joint_rvalue"].values[0][0], 2.0)
+                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_angular_position"].values[0][0], 1.0, places=3)
+                self.assertEqual(viewer.read_objects["actuator2"]["cmd_joint_angular_position"].values[0][0], 2.0)
                 self.assertEqual(viewer.read_objects["box"]["position"].values[0][0], 1.1)
                 self.assertEqual(viewer.read_objects["box"]["position"].values[0][1], 2.2)
                 self.assertAlmostEqual(viewer.read_objects["box"]["position"].values[0][2], 3.3, places=3)

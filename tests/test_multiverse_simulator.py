@@ -45,7 +45,7 @@ class MultiverseSimulatorTestCase(unittest.TestCase):
                                           number_of_envs=2) -> MultiverseViewer:
         if write_objects is None:
             write_attrs = {
-                "cmd_joint_rvalue": [1.0],
+                "cmd_joint_angular_position": [1.0],
                 "cmd_joint_angular_velocity": [2.0]
             }
             write_objects = {
@@ -54,7 +54,7 @@ class MultiverseSimulatorTestCase(unittest.TestCase):
             }
         if read_objects is None:
             read_attrs = {
-                "joint_rvalue": [1.0],
+                "joint_angular_position": [1.0],
                 "joint_angular_velocity": [2.0]
             }
             read_objects = {
