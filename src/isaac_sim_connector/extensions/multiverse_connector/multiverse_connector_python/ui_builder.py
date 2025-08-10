@@ -255,7 +255,7 @@ class UIBuilder(MultiverseConnector):
                     elif prim.IsA(UsdPhysics.PrismaticJoint):
                         prims["prismatic_joint"].append(prim)
                 attributes = {
-                    "body": ["position", "quaternion", "relative_velocity"],
+                    "body": ["position", "quaternion", "linear_velocity", "angular_velocity"],
                     "revolute_joint": ["joint_angular_position", "joint_angular_velocity", "joint_torque", "cmd_joint_angular_position", "cmd_joint_angular_velocity", "cmd_joint_torque"],
                     "prismatic_joint": ["joint_linear_position", "joint_linear_velocity", "joint_force", "cmd_joint_linear_position", "cmd_joint_linear_velocity", "cmd_joint_force"]
                 }
@@ -582,8 +582,10 @@ class UIBuilder(MultiverseConnector):
                                 bodies_positions[view_name][object_idx] = data[:3]
                             elif attribute == "quaternion":
                                 bodies_quaternions[view_name][object_idx] = data[:4]
-                            elif attribute == "relative_velocity":
-                                bodies_velocities[view_name][object_idx] = data[:6]
+                            elif attribute == "linear_velocity":
+                                bodies_velocities[view_name][object_idx][:3] = data[:3]
+                            elif attribute == "angular_velocity":
+                                bodies_velocities[view_name][object_idx][3:] = data[:3]
 
             for rigid_prim_view_name, rigid_prim_view in self.scene_registry.rigid_prim_views.items():
                 free_body_idxes = [idx for idx, prim in enumerate(rigid_prim_view.prims) if prim.GetName() in free_body_names]
@@ -657,11 +659,16 @@ class UIBuilder(MultiverseConnector):
                             if isinstance(quaternion, torch.Tensor):
                                 quaternion = quaternion.cpu().numpy()
                             send_data += [quaternion[0], quaternion[1], quaternion[2], quaternion[3]]
-                        elif attribute == "relative_velocity":
+                        elif attribute == "linear_velocity":
                             velocity = bodies_velocities[view_name][object_idx]
                             if isinstance(velocity, torch.Tensor):
                                 velocity = velocity.cpu().numpy()
-                            send_data += [velocity[0], velocity[1], velocity[2], velocity[3], velocity[4], velocity[5]]
+                            send_data += [velocity[0], velocity[1], velocity[2]]
+                        elif attribute == "angular_velocity":
+                            velocity = bodies_velocities[view_name][object_idx]
+                            if isinstance(velocity, torch.Tensor):
+                                velocity = velocity.cpu().numpy()
+                            send_data += [velocity[3], velocity[4], velocity[5]]
 
                 elif prim_path in self._joint_dict:
                     if prim_path in self._object_articulation_view_idx_dict:
