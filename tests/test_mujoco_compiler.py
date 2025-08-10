@@ -112,7 +112,7 @@ class MujocoCompilerTestCase(MultiverseSimulatorCompilerTestCase):
         "simulation_name": "mujoco_simulation_3",
         "send": {
             "body": ["position", "quaternion", "linear_velocity", "angular_velocity"],
-            "joint": ["joint_rvalue", "joint_tvalue", "joint_angular_velocity", "joint_linear_velocity", "joint_torque",
+            "joint": ["joint_angular_position", "joint_linear_position", "joint_angular_velocity", "joint_linear_velocity", "joint_torque",
                       "joint_force"]
         },
         "receive": {}
