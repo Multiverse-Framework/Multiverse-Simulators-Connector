@@ -637,6 +637,7 @@ class MultiverseSimulator:
 
     def step_callback(self):
         self._current_simulation_time += self.step_size
+        self._current_number_of_steps += 1
 
     def stop_callback(self):
         if self.renderer.is_running():

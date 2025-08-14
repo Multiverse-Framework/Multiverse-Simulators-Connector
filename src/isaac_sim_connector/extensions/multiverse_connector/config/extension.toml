@@ -7,14 +7,13 @@ version = "1.0.1"
 category = "Simulation"
 title = "multiverse_connector"
 description = "Multiverse Connector"
-authors = ["NVIDIA"]
-repository = ""
+authors = ["Giang Nguyen"]
+repository = "https://github.com/Multiverse-Framework/Multiverse-IsaacSim-Connector"
 keywords = []
 changelog = "docs/CHANGELOG.md"
 readme = "docs/README.md"
 preview_image = "data/preview.png"
 icon = "data/icon.png"
-
 
 [dependencies]
 "omni.kit.uiapp" = {}
@@ -22,4 +21,4 @@ icon = "data/icon.png"
 "isaacsim.core.api" = {}
 
 [[python.module]]
-name = "multiverse_connector_python"
+name = "multiverse_connector"

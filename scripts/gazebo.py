@@ -42,7 +42,7 @@ def parse_unknown_args(unknown: List[str]) -> Dict[str, Any]:
 
 def main():
     try:
-        parser = argparse.ArgumentParser(description="Run the Mujoco Connector")
+        parser = argparse.ArgumentParser(description="Run the Gazebo Connector")
         parser.add_argument(
             "--file_path", type=str, required=True, help="Path to the Gazebo SDF file"
         )

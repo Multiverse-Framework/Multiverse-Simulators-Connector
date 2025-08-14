@@ -9,6 +9,7 @@
 
 import sys
 import os
+import carb
 
 for path in os.environ["PYTHONPATH"].split(os.pathsep):
     multiverse_client_path = os.path.join(path, "multiverse_client_py")
@@ -26,15 +27,16 @@ else:
 
 from multiverse_client_py import MultiverseClient, MultiverseMetaData
 
+
 class MultiverseConnector(MultiverseClient):
     def __init__(self, port: str, multiverse_meta_data: MultiverseMetaData) -> None:
         super().__init__(port, multiverse_meta_data)
 
     def loginfo(self, message: str) -> None:
-        print(f"INFO: {message}")
+        carb.log_info(f"{message}")
 
     def logwarn(self, message: str) -> None:
-        print(f"WARN: {message}")
+        carb.log_warn(f"{message}")
 
     def _run(self) -> None:
         self.loginfo("Start running the client.")
@@ -50,21 +52,23 @@ class MultiverseConnector(MultiverseClient):
         self._communicate(False)
         # self.loginfo("Received data: " + str(self.receive_data))
 
+
 from dataclasses import dataclass
+
 
 @dataclass
 class MultiverseObject:
     prim: ...
     root_prim: ...
 
+
 import numpy
 import json
-import torch
 import omni.timeline
 import omni.ui as ui
-from isaaclab.sim import SimulationContext
 from isaacsim.gui.components.element_wrappers import CollapsableFrame, TextBlock, StringField, IntField, CheckBox
 from isaacsim.gui.components.ui_utils import get_style
+from isaacsim.core.api import SimulationContext
 from isaacsim.core.api.world.world import World
 from isaacsim.core.api.scenes.scene import Scene
 from isaacsim.core.api.scenes.scene_registry import SceneRegistry
@@ -76,6 +80,7 @@ from pxr import UsdGeom, UsdPhysics
 
 dc = _dynamic_control.acquire_dynamic_control_interface()
 
+
 class UIBuilder(MultiverseConnector):
     def __init__(self):
         # Frames are sub-windows that can contain multiple UI elements
@@ -86,8 +91,12 @@ class UIBuilder(MultiverseConnector):
 
         self._world = None
         self._scene = None
+        self._selection_panel_frame = None
+        self._send_objects_frame = None
+        self._receive_objects_frame = None
 
         self._clean_up()
+        self._multiverse_params = {}
         self._ignore_names = ["defaultGroundPlane", "Environment", "OmniKit_Viewport_LightRig", "Lights", "Robot", "Objects"]
 
         # Get access to the timeline to control stop/pause/play programmatically
@@ -101,19 +110,6 @@ class UIBuilder(MultiverseConnector):
         """Callback for when the UI is opened from the toolbar.
         This is called directly after build_ui().
         """
-        # Handles the case where the user loads their Articulation and
-        # presses play before opening this extension
-        if self._timeline.is_playing():
-            pass
-        elif self._timeline.is_stopped():
-            pass
-
-    def on_timeline_event(self, event):
-        """Callback for Timeline events (Play, Pause, Stop)
-
-        Args:
-            event (omni.timeline.TimelineEventType): Event Type
-        """
         pass
 
     def on_physics_step(self, step):
@@ -126,37 +122,13 @@ class UIBuilder(MultiverseConnector):
         if len(self._send_objects) + len(self._receive_objects) > 0:
             self.send_and_receive_data()
 
-    def on_stage_event(self, event):
-        """Callback for Stage Events
-
-        Args:
-            event (omni.usd.StageEventType): Event Type
-        """
-        if event.type == int(omni.usd.StageEventType.ASSETS_LOADED):
-            if isinstance(self.world, SimulationContext) and self._timeline.is_playing():
-                self._clean_up()
-                self.build_ui()
-                self._init()
-        elif event.type == int(omni.usd.StageEventType.SIMULATION_START_PLAY):
-            if isinstance(self.world, omni.isaac.core.world.world.World):
-                # self.build_ui()
-                self._init()
-        elif event.type == int(omni.usd.StageEventType.ANIMATION_START_PLAY):
-            if isinstance(self.world, SimulationContext):
-                # self._init()
-                pass # TODO: Make pause and unpause in IsaacLab work
-        elif event.type == int(omni.usd.StageEventType.SIMULATION_STOP_PLAY):
-            # Ignore pause events
-            if isinstance(self.world, SimulationContext) or self._timeline.is_stopped():
-                self._clean_up(clean_ui=False)
-
-    def cleanup(self):
+    def cleanup(self, clean_ui: bool = True):
         """
         Called when the stage is closed or the extension is hot reloaded.
         Perform any necessary cleanup such as removing active callback functions
         Buttons imported from isaacsim.gui.components.element_wrappers implement a cleanup function that should be called
         """
-        self._clean_up()
+        self._clean_up(clean_ui)
         for ui_elem in self.wrapped_ui_elements:
             ui_elem.cleanup()
 
@@ -175,23 +147,28 @@ class UIBuilder(MultiverseConnector):
         send = {}
         receive = {}
 
-        multiverse_params = {}
+        self._multiverse_params = {}
         if "multiverse_connector" in customLayerData:
-            multiverse_params = customLayerData["multiverse_connector"]
+            self.loginfo(f"Found multiverse_connector data in customLayerData: {customLayerData['multiverse_connector']}")
+            self._multiverse_params = customLayerData["multiverse_connector"]
         else:
-            tmp_path = "/tmp/multiverse_isaacsim_connector.yaml"
+            tmp_path = self.tmp_path
             if os.path.exists(tmp_path):
+                self.loginfo(f"Found {tmp_path}")
                 import yaml
-                with open(tmp_path, "r") as file:
-                    multiverse_params = yaml.safe_load(file)
 
-        host = multiverse_params.get("host", host)
-        server_port = multiverse_params.get("server_port", server_port)
-        client_port = multiverse_params.get("client_port", client_port)
-        world_name = multiverse_params.get("world_name", world_name)
-        simulation_name = multiverse_params.get("simulation_name", simulation_name)
-        send = multiverse_params.get("send", send)
-        receive = multiverse_params.get("receive", receive)
+                with open(tmp_path, "r") as file:
+                    self._multiverse_params = yaml.safe_load(file)
+            else:
+                self.logwarn(f"No multiverse_isaacsim_connector.yaml found in {os.path.dirname(tmp_path)}, using default values.")
+
+        host = self._multiverse_params.get("host", host)
+        server_port = self._multiverse_params.get("server_port", server_port)
+        client_port = self._multiverse_params.get("client_port", client_port)
+        world_name = self._multiverse_params.get("world_name", world_name)
+        simulation_name = self._multiverse_params.get("simulation_name", simulation_name)
+        send = self._multiverse_params.get("send", send)
+        receive = self._multiverse_params.get("receive", receive)
         for key, values in send.items():
             if isinstance(values, str):
                 send[key] = json.loads(values)
@@ -199,9 +176,10 @@ class UIBuilder(MultiverseConnector):
             if isinstance(values, str):
                 receive[key] = json.loads(values)
 
-        selection_panel_frame = CollapsableFrame("Multiverse Connector", collapsed=False)
+        if self._selection_panel_frame is None:
+            self._selection_panel_frame = CollapsableFrame("Multiverse Connector", collapsed=True)
 
-        with selection_panel_frame:
+        with self._selection_panel_frame:
             with ui.VStack(style=get_style(), spacing=5, height=0):
                 self._info_text = TextBlock(
                     "Info",
@@ -210,88 +188,63 @@ class UIBuilder(MultiverseConnector):
                     num_lines=1,
                 )
 
-                self._host_field = StringField(
-                    label="Server Host",
-                    tooltip="Enter the server host address.",
-                    default_value=host
-                )
+                self._host_field = StringField(label="Server Host", tooltip="Enter the server host address.", default_value=host)
                 self._server_port_field = IntField(
-                    label="Server Port",
-                    tooltip="Enter the server port number.",
-                    default_value=server_port,
-                    lower_limit=1000,
-                    upper_limit=9999
+                    label="Server Port", tooltip="Enter the server port number.", default_value=server_port, lower_limit=1000, upper_limit=9999
                 )
                 self._client_port_field = IntField(
-                    label="Client Port",
-                    tooltip="Enter the client port number.",
-                    default_value=client_port,
-                    lower_limit=1000,
-                    upper_limit=9999
+                    label="Client Port", tooltip="Enter the client port number.", default_value=client_port, lower_limit=1000, upper_limit=9999
                 )
-                self._world_name_field = StringField(
-                    label="World Name",
-                    tooltip="Enter the name of the world.",
-                    default_value=world_name
-                )
+                self._world_name_field = StringField(label="World Name", tooltip="Enter the name of the world.", default_value=world_name)
                 self._simulation_name_field = StringField(
-                    label="Simulation Name",
-                    tooltip="Enter the name of the simulation.",
-                    default_value=simulation_name
+                    label="Simulation Name", tooltip="Enter the name of the simulation.", default_value=simulation_name
                 )
 
-                prims = {
-                    "body": [],
-                    "revolute_joint": [],
-                    "prismatic_joint": []
-                }
+                prims = {"body": [], "revolute_joint": [], "prismatic_joint": []}
                 for prim in current_stage.TraverseAll():
                     if prim.GetName() in self._ignore_names:
                         continue
-                    if prim.IsA(UsdGeom.Xform):
+                    if prim.IsA(UsdGeom.Xform) or prim.IsA(UsdGeom.Gprim):
                         prims["body"].append(prim)
                     elif prim.IsA(UsdPhysics.RevoluteJoint):
                         prims["revolute_joint"].append(prim)
                     elif prim.IsA(UsdPhysics.PrismaticJoint):
                         prims["prismatic_joint"].append(prim)
                 attributes = {
-                    "body": ["position", "quaternion", "linear_velocity", "angular_velocity"],
-                    "revolute_joint": ["joint_angular_position", "joint_angular_velocity", "joint_torque", "cmd_joint_angular_position", "cmd_joint_angular_velocity", "cmd_joint_torque"],
-                    "prismatic_joint": ["joint_linear_position", "joint_linear_velocity", "joint_force", "cmd_joint_linear_position", "cmd_joint_linear_velocity", "cmd_joint_force"]
+                    "body": ["position", "quaternion", "linear_velocity", "angular_velocity", "force", "torque"],
+                    "revolute_joint": [
+                        "joint_angular_position",
+                        "joint_angular_velocity",
+                        "joint_torque",
+                        "cmd_joint_angular_position",
+                        "cmd_joint_angular_velocity",
+                        "cmd_joint_torque",
+                    ],
+                    "prismatic_joint": [
+                        "joint_linear_position",
+                        "joint_linear_velocity",
+                        "joint_force",
+                        "cmd_joint_linear_position",
+                        "cmd_joint_linear_velocity",
+                        "cmd_joint_force",
+                    ],
                 }
-                titles = {
-                    "body": "Bodies",
-                    "revolute_joint": "Revolute Joints",
-                    "prismatic_joint": "Prismatic Joints"
-                }
+                titles = {"body": "Bodies", "revolute_joint": "Revolute Joints", "prismatic_joint": "Prismatic Joints"}
 
-                self._send_objects_frame = CollapsableFrame(
-                    title="Send Objects",
-                    collapsed=True,
-                    enabled=True)
+                self._send_objects_frame = CollapsableFrame(title="Send Objects", collapsed=True, enabled=True)
                 with self._send_objects_frame:
                     with ui.VStack():
                         for prim_type, prim_list in prims.items():
-                            prim_type_frame = CollapsableFrame(
-                                title=f"{titles[prim_type]}",
-                                collapsed=True,
-                                enabled=True)
+                            prim_type_frame = CollapsableFrame(title=f"{titles[prim_type]}", collapsed=True, enabled=True)
                             with prim_type_frame:
                                 with ui.VStack():
                                     for prim in prim_list:
                                         prim_path = prim.GetPath()
                                         prim_name = prim_path.name
-                                        prim_frame = CollapsableFrame(
-                                            title=prim_path.pathString,
-                                            collapsed=True,
-                                            enabled=True)
+                                        prim_frame = CollapsableFrame(title=prim_path.pathString, collapsed=True, enabled=True)
                                         with prim_frame:
                                             with ui.VStack():
-                                                name_field = StringField(
-                                                    label="name",
-                                                    default_value=prim_name,
-                                                    tooltip=f"Send name of {prim_path}."
-                                                )
+                                                name_field = StringField(label="name", default_value=prim_name, tooltip=f"Send name of {prim_path}.")
                                                 self._send_prims_dict[prim] = name_field
                                                 self._send_prims_check_boxes[prim] = []
                                                 for attr in attributes[prim_type]:
@@ -305,38 +258,25 @@ class UIBuilder(MultiverseConnector):
                                                         if "joint" in send and attr in send["joint"]:
                                                             default_value = True
                                                     check_box = CheckBox(
-                                                        label=attr,
-                                                        default_value=default_value,
-                                                        tooltip=f"Send {attr} of {prim_path}."
+                                                        label=attr, default_value=default_value, tooltip=f"Send {attr} of {prim_path}."
                                                     )
                                                     self._send_prims_check_boxes[prim].append(check_box)
 
-                self._receive_objects_frame = CollapsableFrame(
-                    title="Receive Objects",
-                    collapsed=True,
-                    enabled=True)
+                self._receive_objects_frame = CollapsableFrame(title="Receive Objects", collapsed=True, enabled=True)
                 with self._receive_objects_frame:
                     with ui.VStack():
                         for prim_type, prim_list in prims.items():
-                            prim_type_frame = CollapsableFrame(
-                                title=f"{titles[prim_type]}",
-                                collapsed=True,
-                                enabled=True)
+                            prim_type_frame = CollapsableFrame(title=f"{titles[prim_type]}", collapsed=True, enabled=True)
                             with prim_type_frame:
                                 with ui.VStack():
                                     for prim in prim_list:
                                         prim_path = prim.GetPath()
                                         prim_name = prim_path.name
-                                        prim_frame = CollapsableFrame(
-                                            title=prim_path.pathString,
-                                            collapsed=True,
-                                            enabled=True)
+                                        prim_frame = CollapsableFrame(title=prim_path.pathString, collapsed=True, enabled=True)
                                         with prim_frame:
                                             with ui.VStack():
                                                 name_field = StringField(
-                                                    label="name",
-                                                    default_value=prim_name,
-                                                    tooltip=f"Receive name of {prim_path}."
+                                                    label="name", default_value=prim_name, tooltip=f"Receive name of {prim_path}."
                                                 )
                                                 self._receive_prims_dict[prim] = name_field
                                                 self._receive_prims_check_boxes[prim] = []
@@ -351,9 +291,7 @@ class UIBuilder(MultiverseConnector):
                                                         if "joint" in receive and attr in receive["joint"]:
                                                             default_value = True
                                                     check_box = CheckBox(
-                                                        label=attr,
-                                                        default_value=default_value,
-                                                        tooltip=f"Receive {attr} of {prim_path}."
+                                                        label=attr, default_value=default_value, tooltip=f"Receive {attr} of {prim_path}."
                                                     )
                                                     self._receive_prims_check_boxes[prim].append(check_box)
 
@@ -361,7 +299,7 @@ class UIBuilder(MultiverseConnector):
     # Functions Below This Point Support The Provided Example And Can Be Replaced/Deleted
     ######################################################################################
 
-    def _init(self):
+    def start(self):
         multiverse_meta_data = MultiverseMetaData(
             world_name=self._world_name_field.get_value(),
             simulation_name=self._simulation_name_field.get_value(),
@@ -369,12 +307,11 @@ class UIBuilder(MultiverseConnector):
             angle_unit="rad",
             mass_unit="kg",
             time_unit="s",
-            handedness="rhs"
+            handedness="rhs",
         )
         MultiverseConnector._host = self._host_field.get_value()
-        super().__init__(port=str(self._client_port_field.get_value()),
-                         multiverse_meta_data=multiverse_meta_data)
-        
+        super().__init__(port=str(self._client_port_field.get_value()), multiverse_meta_data=multiverse_meta_data)
+
         def init_objects_callback() -> None:
             self._send_objects = {}
             self._receive_objects = {}
@@ -391,7 +328,7 @@ class UIBuilder(MultiverseConnector):
                     else:
                         self.__remove_receive_object(prim, check_box.label.text)
 
-            if len(self.scene_registry.rigid_contact_views) > 0: # Need to stop if rigid_contact_views are present
+            if len(self.scene_registry.rigid_contact_views) > 0:  # Need to stop if rigid_contact_views are present
                 self.world.stop()
             current_stage = stage.get_current_stage()
             articulation_prim_paths = []
@@ -401,7 +338,7 @@ class UIBuilder(MultiverseConnector):
             self._constrained_bodies = set()
 
             for prim in current_stage.TraverseAll():
-                if prim.IsA(UsdGeom.Xform):
+                if prim.IsA(UsdGeom.Xform) or prim.IsA(UsdGeom.Gprim):
                     prim_path = prim.GetPath()
                     body_name = prim_path.name
                     if body_name in self._ignore_names:
@@ -419,6 +356,8 @@ class UIBuilder(MultiverseConnector):
                     elif prim.IsA(UsdPhysics.Joint):
                         joint = UsdPhysics.Joint(prim)
                         xform_prim_path = joint.GetBody1Rel().GetTargets()[0]
+                    else:
+                        raise ValueError(f"Unsupported articulation root prim type: {prim.GetTypeName()}")
                     articulation_prim_paths.append(xform_prim_path)
 
             for body_path, body_prim in self._body_dict.items():
@@ -429,7 +368,7 @@ class UIBuilder(MultiverseConnector):
                 if not body_prim.prim.HasAPI(UsdPhysics.RigidBodyAPI) and not body_prim.root_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     self._constrained_bodies.add(body_path)
                 else:
-                    rigid_body_api = UsdPhysics.RigidBodyAPI(prim)
+                    rigid_body_api = UsdPhysics.RigidBodyAPI(body_prim.prim)
                     if not rigid_body_api.GetRigidBodyEnabledAttr().Get():
                         self._constrained_bodies.add(body_path)
 
@@ -513,8 +452,9 @@ class UIBuilder(MultiverseConnector):
                     self.scene_registry.add_rigid_prim_view(rigid_prim_view.name, rigid_prim_view)
                     for body_idx, body_path in enumerate(rigid_prim_paths):
                         self._object_rigid_prim_view_idx_dict[body_path] = (rigid_prim_view.name, body_idx)
+
         self.init_objects_callback = init_objects_callback
-        
+
         def bind_request_meta_data() -> None:
             request_meta_data = self.request_meta_data
             for prim, attrs in self._send_objects.items():
@@ -526,6 +466,7 @@ class UIBuilder(MultiverseConnector):
                 self._receive_names_dict[object_name] = prim
                 request_meta_data["receive"][object_name] = attrs
             self.request_meta_data = request_meta_data
+
         self.bind_request_meta_data_callback = bind_request_meta_data
 
         def bind_response_meta_data() -> None:
@@ -576,8 +517,6 @@ class UIBuilder(MultiverseConnector):
                             data = response_meta_data[send_receive][object_name][attribute]
                             if any(x is None for x in data):
                                 continue
-                            if isinstance(self.world, SimulationContext):
-                                data = torch.tensor(data).to("cuda").float()
                             if attribute == "position":
                                 bodies_positions[view_name][object_idx] = data[:3]
                             elif attribute == "quaternion":
@@ -612,6 +551,25 @@ class UIBuilder(MultiverseConnector):
 
             for articulation_view_name, articulation_view in self.scene_registry.articulated_views.items():
                 articulation_view.set_velocities(bodies_velocities[articulation_view_name])
+
+            self._multiverse_params["host"] = self._host_field.get_value()
+            self._multiverse_params["server_port"] = self._server_port_field.get_value()
+            self._multiverse_params["client_port"] = self._client_port_field.get_value()
+            self._multiverse_params["world_name"] = self._world_name_field.get_value()
+            self._multiverse_params["simulation_name"] = self._simulation_name_field.get_value()
+            for send_receive in ["send", "receive"]:
+                self._multiverse_params[send_receive] = {}
+                if send_receive not in response_meta_data:
+                    continue
+                for object_name, attributes in response_meta_data[send_receive].items():
+                    self._multiverse_params[send_receive][object_name] = []
+                    for attribute_name in attributes.keys():
+                        self._multiverse_params[send_receive][object_name].append(attribute_name)
+            with open(self.tmp_path, "w") as file:
+                import yaml
+
+                yaml.dump(self._multiverse_params, file)
+
         self.bind_response_meta_data_callback = bind_response_meta_data
 
         def bind_send_data() -> None:
@@ -651,23 +609,15 @@ class UIBuilder(MultiverseConnector):
                     for attribute in attributes.keys():
                         if attribute == "position":
                             position = bodies_positions[view_name][object_idx]
-                            if isinstance(position, torch.Tensor):
-                                position = position.cpu().numpy()
                             send_data += [position[0], position[1], position[2]]
                         elif attribute == "quaternion":
                             quaternion = bodies_quaternions[view_name][object_idx]
-                            if isinstance(quaternion, torch.Tensor):
-                                quaternion = quaternion.cpu().numpy()
                             send_data += [quaternion[0], quaternion[1], quaternion[2], quaternion[3]]
                         elif attribute == "linear_velocity":
                             velocity = bodies_velocities[view_name][object_idx]
-                            if isinstance(velocity, torch.Tensor):
-                                velocity = velocity.cpu().numpy()
                             send_data += [velocity[0], velocity[1], velocity[2]]
                         elif attribute == "angular_velocity":
                             velocity = bodies_velocities[view_name][object_idx]
-                            if isinstance(velocity, torch.Tensor):
-                                velocity = velocity.cpu().numpy()
                             send_data += [velocity[3], velocity[4], velocity[5]]
 
                 elif prim_path in self._joint_dict:
@@ -688,10 +638,11 @@ class UIBuilder(MultiverseConnector):
                             value = measured_joints_efforts[articulation_view_name][0][joint_idx]
                         elif attribute == "joint_torque":
                             value = measured_joints_efforts[articulation_view_name][0][joint_idx]
-                        if isinstance(value, torch.Tensor):
-                            value = float(value.cpu().numpy())
+                        else:
+                            raise ValueError(f"Unknown joint attribute: {attribute}")
                         send_data += [value]
             self.send_data = send_data
+
         self.bind_send_data_callback = bind_send_data
 
         def bind_receive_data() -> None:
@@ -702,6 +653,8 @@ class UIBuilder(MultiverseConnector):
             bodies_positions = {}
             bodies_quaternions = {}
 
+            bodies_forces_torques = {}
+
             bodies_velocities = {}
             cmd_joints_values = {}
 
@@ -711,9 +664,9 @@ class UIBuilder(MultiverseConnector):
             for rigid_prim_view_name, rigid_prim_view in self.scene_registry.rigid_prim_views.items():
                 bodies_positions[rigid_prim_view_name], bodies_quaternions[rigid_prim_view_name] = rigid_prim_view.get_world_poses()
                 bodies_velocities[rigid_prim_view_name] = {}
+                bodies_forces_torques[rigid_prim_view_name] = {}
 
             for articulation_view_name, articulation_view in self.scene_registry.articulated_views.items():
-                bodies_positions[articulation_view_name], bodies_quaternions[articulation_view_name] = articulation_view.get_world_poses()
                 bodies_velocities[articulation_view_name] = {}
                 cmd_joints_values[articulation_view_name] = {}
 
@@ -731,7 +684,7 @@ class UIBuilder(MultiverseConnector):
                         raise Exception(f"Body {prim_path.pathString} not found in any view")
 
                     for attribute in attributes:
-                        if attribute == "odometric_velocity" and prim_path in self.body_dict:
+                        if attribute == "odometric_velocity" and prim_path in self._body_dict:
                             quaternion = bodies_quaternions[view_name][object_idx]
 
                             w = quaternion[0]
@@ -787,6 +740,18 @@ class UIBuilder(MultiverseConnector):
                             angular_velocity = [odom_velocity[3], odom_velocity[4], odom_velocity[5]]
 
                             bodies_velocities[view_name] = {object_idx: linear_velocity + angular_velocity}
+                        elif attribute in ["force", "torque"]:
+                            effort = bodies_forces_torques.get(view_name, {}).get(object_idx, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                            if attribute == "force":
+                                force = receive_data[:3]
+                                effort[:3] = force
+                            elif attribute == "torque":
+                                torque = receive_data[:3]
+                                effort[3:] = torque
+                            receive_data = receive_data[3:]
+                            bodies_forces_torques[view_name][object_idx] = effort
+                        else:
+                            self.logwarn(f"Attribute {attribute} not supported for body {prim_path.pathString} yet.")
 
                 elif prim_path in self._joint_dict:
                     articulation_view_name, joint_idx = self._object_articulation_view_idx_dict[prim_path]
@@ -804,12 +769,23 @@ class UIBuilder(MultiverseConnector):
                             cmd_joint_effort = receive_data[0]
                             receive_data = receive_data[1:]
                             cmd_joints_values[articulation_view_name][joint_idx][2] = cmd_joint_effort
+                        else:
+                            self.logwarn(f"Attribute {attribute} not supported for joint {prim_path.pathString} yet.")
 
             for rigid_prim_view_name, rigid_prim_view in self.scene_registry.rigid_prim_views.items():
                 if rigid_prim_view_name in bodies_velocities and len(bodies_velocities[rigid_prim_view_name]) > 0:
                     cmd_body_velocities = list(bodies_velocities[rigid_prim_view_name].values())
                     cmd_body_idxes = list(bodies_velocities[rigid_prim_view_name].keys())
                     rigid_prim_view.set_velocities(velocities=cmd_body_velocities, indices=cmd_body_idxes)
+                if rigid_prim_view_name in bodies_forces_torques and len(bodies_forces_torques[rigid_prim_view_name]) > 0:
+                    apply_efforts = list(bodies_forces_torques[rigid_prim_view_name].values())
+                    apply_forces = [apply_effort[:3] for apply_effort in apply_efforts]
+                    apply_torques = [apply_effort[3:] for apply_effort in apply_efforts]
+                    rigid_prim_view.apply_forces_and_torques_at_pos(forces=apply_forces,
+                                                                    torques=apply_torques,
+                                                                    indices=list(bodies_forces_torques[rigid_prim_view_name].keys()),
+                                                                    positions=None,
+                                                                    is_global=True)
 
             for articulation_view_name, articulation_view in self.scene_registry.articulated_views.items():
                 if articulation_view_name in bodies_velocities and len(bodies_velocities[articulation_view_name]) > 0:
@@ -822,22 +798,23 @@ class UIBuilder(MultiverseConnector):
                     cmd_joint_positions = [cmd_joint_value[0] for cmd_joint_value in cmd_joint_values]
                     cmd_joint_velocities = [cmd_joint_value[1] for cmd_joint_value in cmd_joint_values]
                     cmd_joint_efforts = [cmd_joint_value[2] for cmd_joint_value in cmd_joint_values]
-                    if isinstance(self.world, SimulationContext):
-                        cmd_joint_positions = torch.tensor(cmd_joint_positions).to("cuda").float()
-                        cmd_joint_velocities = torch.tensor(cmd_joint_velocities).to("cuda").float()
-                        cmd_joint_efforts = torch.tensor(cmd_joint_efforts).to("cuda").float()
                     cmd_joint_idxes = list(cmd_joints_values[articulation_view_name].keys())
                     action = ArticulationActions(
                         joint_positions=cmd_joint_positions,
                         joint_velocities=cmd_joint_velocities,
                         joint_efforts=cmd_joint_efforts,
-                        joint_indices=cmd_joint_idxes)
+                        joint_indices=cmd_joint_idxes,
+                    )
                     articulation_view.apply_action(action)
+
         self.bind_receive_data_callback = bind_receive_data
 
         self.run()
 
         self.send_and_receive_meta_data()
+
+    def stop(self):
+        MultiverseClient.stop(self)
 
     def __add_send_object(self, prim, attr: str):
         if prim not in self._send_objects:
@@ -891,9 +868,15 @@ class UIBuilder(MultiverseConnector):
         if self._scene is None:
             self._scene = Scene()
         return self._scene._scene_registry
-    
+
     @property
-    def world(self) -> "World":
+    def world(self) -> SimulationContext:
         if self._world is None:
             self._world = World()
         return self._world
+
+    @property
+    def tmp_path(self) -> str:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        tmp_dir = os.path.normpath(os.path.join(current_dir, "..", "tmp"))
+        return os.path.join(tmp_dir, "multiverse_connector.yaml")
