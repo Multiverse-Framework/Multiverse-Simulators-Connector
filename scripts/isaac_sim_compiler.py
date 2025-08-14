@@ -1,11 +1,29 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 from typing import Dict, Any, Optional
 
 import numpy
 import shutil
 import json
+import yaml
+
+current_dir = os.path.dirname(__file__)
+lib_dir = os.path.abspath(os.path.join(current_dir, '..', 'src'))
+sys.path.insert(0, lib_dir)
+
+external_parent_dir = os.path.abspath(os.path.join(current_dir, '..', '..', '..', '..', '..', 'Multiverse-Parser'))
+if os.name == 'nt':
+    usd_dir = os.path.abspath(os.path.join(external_parent_dir, 'USD', 'windows', 'lib', 'python'))
+    os.environ["PATH"] += f";{os.path.abspath(os.path.join(external_parent_dir, 'USD', 'windows', 'bin'))}"
+    os.environ["PATH"] += f";{os.path.abspath(os.path.join(external_parent_dir, 'USD', 'windows', 'lib'))}"
+    os.environ["PATH"] += f";{os.path.abspath(os.path.join(external_parent_dir, 'USD', 'windows', 'plugin', 'usd'))}"
+else:
+    usd_dir = os.path.abspath(os.path.join(external_parent_dir, 'USD', 'linux', 'lib', 'python'))
+    os.environ["PATH"] += f":{os.path.abspath(os.path.join(external_parent_dir, 'USD', 'linux', 'lib'))}"
+    os.environ["PATH"] += f":{os.path.abspath(os.path.join(external_parent_dir, 'USD', 'linux', 'plugin', 'usd'))}"
+sys.path.insert(0, usd_dir)
 
 from multiverse_simulator import MultiverseSimulatorCompiler, Robot, Object, multiverse_simulator_compiler_main
 
@@ -13,6 +31,7 @@ from multiverse_simulator import MultiverseSimulatorCompiler, Robot, Object, mul
 class IsaacSimCompiler(MultiverseSimulatorCompiler):
     name: str = "isaac_sim"
     ext: str = "usda"
+    world_stage: Optional["Usd.Stage"] = None
 
     def __init__(self, args):
         super().__init__(args)
@@ -38,13 +57,16 @@ class IsaacSimCompiler(MultiverseSimulatorCompiler):
                 with open(entity_usd_path, "w") as f:
                     f.write(data)
             entity_stage = Usd.Stage.Open(entity_usd_path)
+            entity_editor = Usd.NamespaceEditor(entity_stage)
 
             if "body" in entity.apply:
                 body_apply = entity.apply["body"]
-                for xform_prim in [prim for prim in entity_stage.Traverse() if
-                                   prim.IsA(UsdGeom.Xform) and prim.GetName() in body_apply]:
-                    if xform_prim.GetName() == entity.name and not xform_prim.GetParent().IsPseudoRoot():
+                xform_prims = [prim for prim in entity_stage.Traverse() if prim.IsA(UsdGeom.Xform) and prim.GetName() in body_apply]
+                bodies_applied = []
+                for xform_prim in xform_prims:
+                    if xform_prim.GetName() in bodies_applied:
                         continue
+                    bodies_applied.append(xform_prim.GetName())
                     xform = UsdGeom.Xform(xform_prim)
                     pose = xform.GetLocalTransformation()
                     pos = pose.ExtractTranslation()
@@ -55,8 +77,9 @@ class IsaacSimCompiler(MultiverseSimulatorCompiler):
                     pos = body_apply[xform_prim.GetName()].get("pos", pos)
                     quat = body_apply[xform_prim.GetName()].get("quat", quat)
 
-                    pos = numpy.asfarray(pos)
-                    quat = numpy.asfarray(quat)
+                    pos = numpy.asarray(pos, dtype=numpy.float64)
+                    quat = numpy.asarray(quat, dtype=numpy.float64)
+                    quat = quat / numpy.linalg.norm(quat)
                     mat = Gf.Matrix4d()
                     mat.SetTranslateOnly(Gf.Vec3d(*pos))
                     mat.SetRotateOnly(Gf.Quatd(quat[0], Gf.Vec3d(*quat[1:])))
@@ -72,19 +95,33 @@ class IsaacSimCompiler(MultiverseSimulatorCompiler):
                     else:
                         print(f"Joint {joint_name} does not have DriveAPI")
 
-            # entity_editor = Usd.NamespaceEditor(entity_stage)
-            # entity_prim = entity_stage.GetDefaultPrim()
-            # entity_editor.RenamePrim(entity_prim, entity.name)
-            # entity_editor.ApplyEdits()
+            entity_prim = entity_stage.GetDefaultPrim()
+            if entity_prim.GetName() != entity.name:
+                entity_editor.RenamePrim(entity_prim, entity.name)
+                entity_editor.ApplyEdits()
+
+            for joint_prim in [prim for prim in entity_stage.TraverseAll() if prim.IsA(UsdPhysics.Joint)]:
+                joint_prim_name = entity.prefix.get("joint", "") + joint_prim.GetName() + entity.suffix.get("joint", "")
+                if joint_prim.GetName() != joint_prim_name:
+                    entity_editor.RenamePrim(joint_prim, joint_prim_name)
+                    entity_editor.ApplyEdits()
 
             entity_stage.GetRootLayer().Save()
 
         robots_path = os.path.join(self.save_dir_path, os.path.basename(self.save_file_path).split(".")[0] + "_robots.usda")
         robots_stage = Usd.Stage.CreateNew(robots_path)
-        if len(robots) == 1:
-            sublayer_paths = [robot.path for robot in robots.values()]
-            robots_stage.GetRootLayer().subLayerPaths = sublayer_paths
-            robots_stage.SetDefaultPrim(robots_stage.GetPrimAtPath(Usd.Stage.Open(sublayer_paths[0]).GetDefaultPrim().GetPath()))
+        robots_prim_path = Sdf.Path("/Robots")
+        robots_xform = UsdGeom.Xform.Define(robots_stage, robots_prim_path)
+        robots_prim = robots_xform.GetPrim()
+        robots_stage.SetDefaultPrim(robots_prim)
+
+        for robot in robots.values():
+            robot_prim_path = robots_prim_path.AppendChild(robot.name)
+            robot_xform = UsdGeom.Xform.Define(robots_stage, robot_prim_path)
+            robot_prim = robot_xform.GetPrim()
+            robot_stage = Usd.Stage.Open(robot.path)
+            robot_prim.GetReferences().AddReference(robot_stage.GetRootLayer().identifier, robot_stage.GetDefaultPrim().GetPath())
+
         robots_stage.Flatten()
         robots_stage.Export(robots_path)
 
@@ -118,9 +155,18 @@ class IsaacSimCompiler(MultiverseSimulatorCompiler):
             with open(self.save_file_path, "w") as f:
                 f.write(data)
 
+        self.world_stage = Usd.Stage.Open(self.save_file_path)
+        subplayer_paths = [robots_path, objects_path]
+        self.world_stage.GetRootLayer().subLayerPaths = subplayer_paths
+        self.world_stage.Export(self.save_file_path)
+
+        if references is not None and references != {}:
+            self.add_references(references)
+            self.world_stage.Export(self.save_file_path)
+
         if multiverse_params is not None and multiverse_params != {}:
-            world_stage = Usd.Stage.Open(self.save_file_path)
-            customLayerData = world_stage.GetRootLayer().customLayerData
+            self.world_stage = Usd.Stage.Open(self.save_file_path)
+            customLayerData = self.world_stage.GetRootLayer().customLayerData
             customLayerData["multiverse_connector"] = {}
             customLayerData["multiverse_connector"]["host"] = multiverse_params.get("host", "tcp://127.0.0.1")
             customLayerData["multiverse_connector"]["server_port"] = multiverse_params.get("server_port", "7000")
@@ -131,12 +177,55 @@ class IsaacSimCompiler(MultiverseSimulatorCompiler):
                 customLayerData["multiverse_connector"][send_receive] = multiverse_params.get(send_receive, {})
                 for key, values in customLayerData["multiverse_connector"][send_receive].items():
                     customLayerData["multiverse_connector"][send_receive][key] = json.dumps(values)
-            world_stage.GetRootLayer().customLayerData = customLayerData
-            world_stage.GetRootLayer().Save()
+            self.world_stage.GetRootLayer().customLayerData = customLayerData
+            self.world_stage.GetRootLayer().Save()
 
-            tmp_path = "/tmp/multiverse_isaacsim_connector.yaml"
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            tmp_dir = os.path.join(current_dir, "..", "src", "isaac_sim_connector", "extensions", "multiverse_connector", "tmp")
+            tmp_path = os.path.join(tmp_dir, "multiverse_connector.yaml")
+
+            def to_list_if_json(s):
+                try:
+                    v = json.loads(s)
+                    return v if isinstance(v, list) else s
+                except Exception:
+                    return s
+
+            multiverse_params["send"] = {k: to_list_if_json(v) for k, v in multiverse_params.get("send", {}).items()}
+            multiverse_params["receive"] = {k: to_list_if_json(v) for k, v in multiverse_params.get("receive", {}).items()}
+
             with open(tmp_path, "w") as f:
-                f.write(str(customLayerData["multiverse_connector"]))
+                yaml.dump(multiverse_params, f)
+
+    def add_references(self, references: Dict[str, Dict[str, Any]]):
+        from pxr import UsdGeom, UsdPhysics # Ask NVIDIA for this shitty importing style
+
+        xform_cache = UsdGeom.XformCache()
+        references_xform = UsdGeom.Xform.Define(self.world_stage, "/References")
+        reference_prim = references_xform.GetPrim()
+        references_path = reference_prim.GetPath()
+        for reference_name, reference in references.items():
+            body_ref_name = reference.get("body1", None)
+            if body_ref_name is None:
+                raise ValueError("Reference must have a body1")
+            body_name = reference.get("body2", None)
+            if body_name is None:
+                raise ValueError("Reference must have a body2")
+            body_prim = None
+            for prim in self.world_stage.Traverse():
+                if prim.GetName() == body_name:
+                    body_prim = prim
+            assert body_prim is not None, f"Body {body_name} not found"
+            mat, _ = xform_cache.ComputeRelativeTransform(body_prim, reference_prim)
+            body_ref_path = references_path.AppendChild(body_ref_name)
+            body_ref_xform = UsdGeom.Xform.Define(self.world_stage, body_ref_path)
+            body_ref_xform.AddTransformOp().Set(mat)
+            body_ref_prim = body_ref_xform.GetPrim()
+            rigid_body_api = UsdPhysics.RigidBodyAPI.Apply(body_ref_prim)
+            fixed_joint_path = body_ref_prim.GetPath().AppendChild("fixed_joint")
+            fixed_joint = UsdPhysics.FixedJoint.Define(self.world_stage, fixed_joint_path)
+            fixed_joint.GetBody0Rel().SetTargets([body_ref_prim.GetPath()])
+            fixed_joint.GetBody1Rel().SetTargets([body_prim.GetPath()])
 
 if __name__ == "__main__":
     multiverse_simulator_compiler_main(IsaacSimCompiler)

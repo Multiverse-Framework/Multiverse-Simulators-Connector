@@ -9,6 +9,8 @@
 
 import asyncio
 import gc
+import carb
+import carb.eventdispatcher as ced
 
 import omni
 import omni.kit.commands
@@ -73,10 +75,11 @@ class Extension(omni.ext.IExt):
         self.ui_builder = UIBuilder()
 
         # Events
+        self._physx_subscription = None
+        self._on_hierarchy_changed_event = None
+        self._timeline_event_sub = None
         self._usd_context = omni.usd.get_context()
         self._physxIFace = _physx.acquire_physx_interface()
-        self._physx_subscription = None
-        self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
 
         self._on_window(True)
@@ -95,21 +98,24 @@ class Extension(omni.ext.IExt):
 
     def _on_window(self, visible):
         if visible:
-            # Subscribe to Stage and Timeline Events
             self._usd_context = omni.usd.get_context()
-            events = self._usd_context.get_stage_event_stream()
-            self._stage_event_sub = events.create_subscription_to_pop(self._on_stage_event)
+            
+            self._on_hierarchy_changed_event = ced.get_eventdispatcher().observe_event(
+                event_name=self._usd_context.stage_event_name(omni.usd.StageEventType.HIERARCHY_CHANGED),
+                on_event=self._on_hierarchy_changed,
+            )
+
             stream = self._timeline.get_timeline_event_stream()
             self._timeline_event_sub = stream.create_subscription_to_pop(self._on_timeline_event)
 
             self._build_ui()
         else:
             self._usd_context = None
-            self._stage_event_sub = None
             self._timeline_event_sub = None
             self.ui_builder.cleanup()
 
     def _build_ui(self):
+        assert self._window is not None, "Window must be initialized before building UI"
         with self._window.frame:
             with ui.VStack(spacing=5, height=0):
                 self._build_extension_ui()
@@ -134,29 +140,32 @@ class Extension(omni.ext.IExt):
     #################################################################
 
     def _menu_callback(self):
+        assert self._window is not None, "Window must be initialized before menu callback"
         self._window.visible = not self._window.visible
         self.ui_builder.on_menu_callback()
 
-    def _on_timeline_event(self, event):
-        if event.type == int(omni.timeline.TimelineEventType.PLAY):
-            if not self._physx_subscription:
-                self._physx_subscription = self._physxIFace.subscribe_physics_step_events(self._on_physics_step)
-        elif event.type == int(omni.timeline.TimelineEventType.STOP):
-            self._physx_subscription = None
+    def _on_hierarchy_changed(self, event):
+        if self._physx_subscription is None:
+            self.ui_builder.cleanup(clean_ui=True)
+            self.ui_builder.build_ui()
 
-        self.ui_builder.on_timeline_event(event)
+    def _on_simulation_start_play(self, event):
+        self.ui_builder.start()
+
+    def _on_simulation_stop_play(self, event):
+        self.ui_builder.stop()
 
     def _on_physics_step(self, step):
         self.ui_builder.on_physics_step(step)
 
-    def _on_stage_event(self, event):
-        if event.type == int(StageEventType.OPENED) or event.type == int(StageEventType.CLOSED):
-            # stage was opened or closed, cleanup
+    def _on_timeline_event(self, event):
+        if event.type == int(omni.timeline.TimelineEventType.PLAY):
+            if self._physx_subscription is None:
+                self.ui_builder.start()
+                self._physx_subscription = self._physxIFace.subscribe_physics_step_events(self._on_physics_step)
+        elif event.type == int(omni.timeline.TimelineEventType.STOP):
             self._physx_subscription = None
-            self.ui_builder.cleanup()
-
-        self.ui_builder.on_stage_event(event)
+            self.ui_builder.stop()
 
     def _build_extension_ui(self):
-        # Call user function for building UI
         self.ui_builder.build_ui()
