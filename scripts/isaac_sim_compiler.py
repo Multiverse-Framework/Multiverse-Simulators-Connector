@@ -96,6 +96,9 @@ class IsaacSimCompiler(MultiverseSimulatorCompiler):
                         print(f"Joint {joint_name} does not have DriveAPI")
 
             entity_prim = entity_stage.GetDefaultPrim()
+            if not entity_prim.IsValid():
+                entity_prim = [prim for prim in entity_stage.Traverse() if prim.IsA(UsdGeom.Xform)][0]
+                entity_stage.SetDefaultPrim(entity_prim)
             if entity_prim.GetName() != entity.name:
                 entity_editor.RenamePrim(entity_prim, entity.name)
                 entity_editor.ApplyEdits()

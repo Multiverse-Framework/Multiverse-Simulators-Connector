@@ -1,6 +1,24 @@
 client_port: 7503
 host: tcp://127.0.0.1
 receive:
+  isaac_sim_cube_1:
+  - force
+  - torque
+  isaac_sim_cube_2:
+  - force
+  - torque
+  isaac_sim_cube_3:
+  - force
+  - torque
+  isaac_sim_cube_4:
+  - force
+  - torque
+  isaac_sim_cube_5:
+  - force
+  - torque
+  isaac_sim_cube_6:
+  - force
+  - torque
   isaac_sim_lh_FFJ1:
   - cmd_joint_angular_position
   isaac_sim_lh_FFJ2:
@@ -96,18 +114,134 @@ receive:
   - force
   - torque
 send:
-  isaac_sim_lh_palm:
+  isaac_sim_cube_1:
+  - angular_velocity
+  - linear_velocity
   - position
   - quaternion
-  - linear_velocity
+  isaac_sim_cube_2:
   - angular_velocity
-  isaac_sim_rh_palm:
+  - linear_velocity
   - position
   - quaternion
-  - linear_velocity
+  isaac_sim_cube_3:
   - angular_velocity
-  joint:
+  - linear_velocity
+  - position
+  - quaternion
+  isaac_sim_cube_4:
+  - angular_velocity
+  - linear_velocity
+  - position
+  - quaternion
+  isaac_sim_cube_5:
+  - angular_velocity
+  - linear_velocity
+  - position
+  - quaternion
+  isaac_sim_cube_6:
+  - angular_velocity
+  - linear_velocity
+  - position
+  - quaternion
+  isaac_sim_lh_FFJ1:
   - joint_angular_position
+  isaac_sim_lh_FFJ2:
+  - joint_angular_position
+  isaac_sim_lh_FFJ3:
+  - joint_angular_position
+  isaac_sim_lh_FFJ4:
+  - joint_angular_position
+  isaac_sim_lh_LFJ1:
+  - joint_angular_position
+  isaac_sim_lh_LFJ2:
+  - joint_angular_position
+  isaac_sim_lh_LFJ3:
+  - joint_angular_position
+  isaac_sim_lh_LFJ4:
+  - joint_angular_position
+  isaac_sim_lh_LFJ5:
+  - joint_angular_position
+  isaac_sim_lh_MFJ1:
+  - joint_angular_position
+  isaac_sim_lh_MFJ2:
+  - joint_angular_position
+  isaac_sim_lh_MFJ3:
+  - joint_angular_position
+  isaac_sim_lh_MFJ4:
+  - joint_angular_position
+  isaac_sim_lh_RFJ1:
+  - joint_angular_position
+  isaac_sim_lh_RFJ2:
+  - joint_angular_position
+  isaac_sim_lh_RFJ3:
+  - joint_angular_position
+  isaac_sim_lh_RFJ4:
+  - joint_angular_position
+  isaac_sim_lh_THJ1:
+  - joint_angular_position
+  isaac_sim_lh_THJ2:
+  - joint_angular_position
+  isaac_sim_lh_THJ3:
+  - joint_angular_position
+  isaac_sim_lh_THJ4:
+  - joint_angular_position
+  isaac_sim_lh_THJ5:
+  - joint_angular_position
+  isaac_sim_lh_palm:
+  - angular_velocity
+  - linear_velocity
+  - position
+  - quaternion
+  isaac_sim_rh_FFJ1:
+  - joint_angular_position
+  isaac_sim_rh_FFJ2:
+  - joint_angular_position
+  isaac_sim_rh_FFJ3:
+  - joint_angular_position
+  isaac_sim_rh_FFJ4:
+  - joint_angular_position
+  isaac_sim_rh_LFJ1:
+  - joint_angular_position
+  isaac_sim_rh_LFJ2:
+  - joint_angular_position
+  isaac_sim_rh_LFJ3:
+  - joint_angular_position
+  isaac_sim_rh_LFJ4:
+  - joint_angular_position
+  isaac_sim_rh_LFJ5:
+  - joint_angular_position
+  isaac_sim_rh_MFJ1:
+  - joint_angular_position
+  isaac_sim_rh_MFJ2:
+  - joint_angular_position
+  isaac_sim_rh_MFJ3:
+  - joint_angular_position
+  isaac_sim_rh_MFJ4:
+  - joint_angular_position
+  isaac_sim_rh_RFJ1:
+  - joint_angular_position
+  isaac_sim_rh_RFJ2:
+  - joint_angular_position
+  isaac_sim_rh_RFJ3:
+  - joint_angular_position
+  isaac_sim_rh_RFJ4:
+  - joint_angular_position
+  isaac_sim_rh_THJ1:
+  - joint_angular_position
+  isaac_sim_rh_THJ2:
+  - joint_angular_position
+  isaac_sim_rh_THJ3:
+  - joint_angular_position
+  isaac_sim_rh_THJ4:
+  - joint_angular_position
+  isaac_sim_rh_THJ5:
+  - joint_angular_position
+  isaac_sim_rh_palm:
+  - angular_velocity
+  - linear_velocity
+  - position
+  - quaternion
 server_port: 7000
 simulation_name: isaac_sim
 world_name: world
