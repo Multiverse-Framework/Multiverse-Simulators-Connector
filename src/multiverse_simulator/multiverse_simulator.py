@@ -510,7 +510,8 @@ class MultiverseSimulator:
     def step(self):
         """Step the simulator"""
         self.pre_step_callback()
-        last_simulation_time = self.current_simulation_time
+        if self.state == MultiverseSimulatorState.RUNNING:
+            last_simulation_time = self.current_simulation_time
         if self._viewer is not None:
             self.write_data_to_simulator(write_data=self._viewer.write_data)
             self.step_callback()
@@ -519,7 +520,7 @@ class MultiverseSimulator:
                 self._viewer.logger.log_data(new_data=self._viewer.read_data)
         else:
             self.step_callback()
-        if not numpy.isclose(self.current_simulation_time - last_simulation_time, self.step_size):
+        if self.state == MultiverseSimulatorState.RUNNING and not numpy.isclose(self.current_simulation_time - last_simulation_time, self.step_size):
             self.reset()
         if not numpy.isclose(
                 self.current_number_of_steps * self.step_size, self.current_simulation_time):
@@ -636,8 +637,9 @@ class MultiverseSimulator:
         return False
 
     def step_callback(self):
-        self._current_simulation_time += self.step_size
-        self._current_number_of_steps += 1
+        if self.state == MultiverseSimulatorState.RUNNING:
+            self._current_simulation_time += self.step_size
+            self._current_number_of_steps += 1
 
     def stop_callback(self):
         if self.renderer.is_running():
