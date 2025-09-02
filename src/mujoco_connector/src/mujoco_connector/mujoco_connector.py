@@ -244,17 +244,19 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                     getattr(self._mj_data, attr)[indices[0]] = write_data[0][indices[1]]
 
     def read_data_from_simulator(self, read_data: numpy.ndarray):
+        if read_data.shape[1] == 0:
+            return
         if not self.use_mjx and read_data.shape[0] > 1:
             raise NotImplementedError("Multiple environments for non MJX is not supported yet")
         if self.use_mjx:
-            for attr, indices in self._read_ids.items():
+            for attr, indices in tuple(self._read_ids.items()):
                 if attr == "energy":
                     read_data[:, indices[1]] = self._mj_data.energy
                 else:
                     attr_values = getattr(self._batch, attr)
                     read_data[:, indices[1]] = attr_values[:, indices[0]].reshape(attr_values.shape[0], -1)
         else:
-            for attr, indices in self._read_ids.items():
+            for attr, indices in tuple(self._read_ids.items()):
                 if attr == "energy":
                     read_data[0][indices[1]] = self._mj_data.energy
                 else:
