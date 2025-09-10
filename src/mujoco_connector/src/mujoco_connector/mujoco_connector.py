@@ -1208,3 +1208,26 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
             info=f"Enabled contact between {body_1_name} and {body_2_name}"
         )
+
+    @MultiverseSimulator.multiverse_callback
+    def spawn_body(self, body: mujoco.MjsBody, parent_body_name: str) -> MultiverseCallbackResult:
+        parent_body = self._mj_spec.find_body(parent_body_name)
+        if parent_body is None:
+            return MultiverseCallbackResult(
+                type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                info=f"Parent body {parent_body_name} not found"
+            )
+        if self._mj_spec.find_body(body.name) is not None:
+            return MultiverseCallbackResult(
+                type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                info=f"Body {body.name} already exists"
+            )
+        parent_body.add_body(body)
+        self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
+        if not self.headless:
+            self._renderer._sim().load(self._mj_model, self._mj_data, "")
+            mujoco.mj_step1(self._mj_model, self._mj_data)
+        return MultiverseCallbackResult(
+            type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
+            info=f"Spawned body {body.name} under parent body {parent_body_name}"
+        )
