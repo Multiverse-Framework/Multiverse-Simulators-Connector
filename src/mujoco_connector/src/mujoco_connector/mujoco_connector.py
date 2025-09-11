@@ -6,7 +6,7 @@ import os
 
 os.environ['XLA_FLAGS'] = '--xla_gpu_triton_gemm_any=true'
 import xml.etree.ElementTree as ET
-from typing import Optional, List, Set, Dict, Union
+from typing import Optional, List, Set, Dict, Union, Any
 
 import jax
 import mujoco
@@ -72,24 +72,23 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_spec.option.cone = getattr(mujoco.mjtCone,
                                             f"mjCONE_{kwargs.get('cone', 'PYRAMIDAL')}")
         self._mj_spec.option.impratio = float(kwargs.get('impratio', 1))
-
-        self._mj_model = self._mj_spec.compile()
-        assert self._mj_model is not None
-        self._mj_model.opt.timestep = self.step_size
+        self._mj_spec.option.timestep = self.step_size
         if kwargs.get('multiccd', False):
-            self._mj_model.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_MULTICCD
+            self._mj_spec.option.enableflags |= mujoco.mjtEnableBit.mjENBL_MULTICCD
         if kwargs.get('energy', True) and not self.use_mjx:
-            self._mj_model.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_ENERGY
+            self._mj_spec.option.enableflags |= mujoco.mjtEnableBit.mjENBL_ENERGY
         if not kwargs.get('contact', True):
-            self._mj_model.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_CONTACT
+            self._mj_spec.option.disableflags |= mujoco.mjtDisableBit.mjDSBL_CONTACT
         if not kwargs.get('gravity', True):
-            self._mj_model.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_GRAVITY
+            self._mj_spec.option.disableflags |= mujoco.mjtDisableBit.mjDSBL_GRAVITY
         if mujoco.mj_version() >= 330:
             if not kwargs.get('nativeccd', True):
-                self._mj_model.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_NATIVECCD
+                self._mj_spec.option.disableflags |= mujoco.mjtDisableBit.mjDSBL_NATIVECCD
         else:
             if kwargs.get('nativeccd', False):
-                self._mj_model.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_NATIVECCD
+                self._mj_spec.option.enableflags |= mujoco.mjtEnableBit.mjENBL_NATIVECCD
+        self._mj_model = self._mj_spec.compile()
+        assert self._mj_model is not None
         self._mj_data = mujoco.MjData(self._mj_model)
 
         mujoco.mj_resetDataKeyframe(self._mj_model, self._mj_data, 0)
@@ -1210,24 +1209,44 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         )
 
     @MultiverseSimulator.multiverse_callback
-    def spawn_body(self, body: mujoco.MjsBody, parent_body_name: str) -> MultiverseCallbackResult:
-        parent_body = self._mj_spec.find_body(parent_body_name)
-        if parent_body is None:
+    def add_entity_to_body(self, entity_name: str, entity_type: str, entity_properties: Dict[str, Any], body_name: str) -> MultiverseCallbackResult:
+        if mujoco.mj_version() >= 330:
+            body_spec = self._mj_spec.body(body_name)
+        else:
+            body_spec = self._mj_spec.find_body(body_name)
+        if body_spec is None:
             return MultiverseCallbackResult(
                 type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
-                info=f"Parent body {parent_body_name} not found"
+                info=f"Parent body {body_name} not found"
             )
-        if self._mj_spec.find_body(body.name) is not None:
+        if entity_type not in ["body", "joint", "geom"]:
             return MultiverseCallbackResult(
                 type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
-                info=f"Body {body.name} already exists"
+                info=f"Entity type {entity_type} is not supported"
             )
-        parent_body.add_body(body)
+        if mujoco.mj_version() >= 330:
+            entity_spec = self._mj_spec.__getattribute__(entity_type)(entity_name)
+        else:
+            entity_spec = self._mj_spec.__getattribute__(f"find_{entity_type}")(entity_name)
+        if entity_spec:
+            return MultiverseCallbackResult(
+                type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                info=f"{entity_type} {entity_name} already exists"
+            )
+        try:
+            entity = body_spec.__getattribute__(f"add_{entity_type}")(name=entity_name, **entity_properties)
+        except Exception as e:
+            return MultiverseCallbackResult(
+                type=MultiverseCallbackResult.ResultType.FAILURE_BEFORE_EXECUTION_ON_MODEL,
+                info=f"Failed to create {entity_type} {entity_name} with properties {entity_properties}: {e}"
+            )
+        self.pause()
         self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
         if not self.headless:
             self._renderer._sim().load(self._mj_model, self._mj_data, "")
             mujoco.mj_step1(self._mj_model, self._mj_data)
+        self.unpause()
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
-            info=f"Spawned body {body.name} under parent body {parent_body_name}"
+            info=f"Spawned {entity_type} {entity.name} under parent body {body_name} with properties {entity_properties}"
         )
