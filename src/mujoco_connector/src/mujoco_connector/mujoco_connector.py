@@ -1170,6 +1170,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
 
         :param body_1_name: The name of the first body.
         :param body_2_name: The name of the second body.
+
+        :return: A MultiverseCallbackResult object indicating the result of the operation.
         """
 
         body_1_id = mujoco.mj_name2id(m=self._mj_model, type=mujoco.mjtObj.mjOBJ_BODY, name=body_1_name)
@@ -1209,17 +1211,48 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         )
 
     @MultiverseSimulator.multiverse_callback
-    def add_entity_to_body(self, entity_name: str, entity_type: str, entity_properties: Dict[str, Any], body_name: str) -> MultiverseCallbackResult:
+    def add_entity(self, entity_name: str, entity_type: str, entity_properties: Dict[str, Any], parent_name: Optional[str] = None, parent_type: str = "body") -> MultiverseCallbackResult:
+        """
+        This method adds a new entity to the simulation. The entity can be a body, joint, geom, frame, or site.
+
+        :param entity_name: The name of the new entity.
+        :param entity_type: The type of the new entity. Can be "body", "joint", "geom", "frame", or "site".
+        :param entity_properties: A dictionary of properties for the new entity.
+        :param parent_name: The name of the parent body or frame to attach the new entity to. If None, the worldbody is used.
+        :param parent_type: The type of the parent entity. Must be "body" for now.
+
+        :return: A MultiverseCallbackResult object indicating the result of the operation.
+        """
+
+        if parent_name is None:
+            parent_name = "world"
+            parent_type = "body"
         if mujoco.mj_version() >= 330:
-            body_spec = self._mj_spec.body(body_name)
+            if parent_type == "body":
+                parent_spec = self._mj_spec.body(parent_name)
+            elif parent_type == "frame":
+                parent_spec = self._mj_spec.frame(parent_name)
+            else:
+                return MultiverseCallbackResult(
+                    type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                    info=f"Parent type {parent_type} is not supported"
+                )
         else:
-            body_spec = self._mj_spec.find_body(body_name)
-        if body_spec is None:
+            if parent_type == "body":
+                parent_spec = self._mj_spec.find_body(parent_name)
+            elif parent_type == "frame":
+                parent_spec = self._mj_spec.find_frame(parent_name)
+            else:
+                return MultiverseCallbackResult(
+                    type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                    info=f"Parent type {parent_type} is not supported"
+                )
+        if parent_spec is None:
             return MultiverseCallbackResult(
                 type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
                 info=f"Parent body {body_name} not found"
             )
-        if entity_type not in ["body", "joint", "geom"]:
+        if entity_type not in ["body", "joint", "geom", "frame", "site"]:
             return MultiverseCallbackResult(
                 type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
                 info=f"Entity type {entity_type} is not supported"
@@ -1234,7 +1267,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                 info=f"{entity_type} {entity_name} already exists"
             )
         try:
-            entity = body_spec.__getattribute__(f"add_{entity_type}")(name=entity_name, **entity_properties)
+            entity = parent_spec.__getattribute__(f"add_{entity_type}")(name=entity_name, **entity_properties)
         except Exception as e:
             return MultiverseCallbackResult(
                 type=MultiverseCallbackResult.ResultType.FAILURE_BEFORE_EXECUTION_ON_MODEL,
@@ -1248,5 +1281,5 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self.unpause()
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
-            info=f"Spawned {entity_type} {entity.name} under parent body {body_name} with properties {entity_properties}"
+            info=f"Spawned {entity_type} {entity.name} under parent body {parent_name} with properties {entity_properties}"
         )
