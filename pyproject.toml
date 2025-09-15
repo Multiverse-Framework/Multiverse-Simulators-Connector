@@ -1,6 +1,6 @@
 [project]
 name = "multiverse_simulators"
-version = "0.0.6"
+version = "0.0.7"
 authors = [
   { name="Giang Nguyen", email="hoanggia@uni-bremen.de" },
 ]
