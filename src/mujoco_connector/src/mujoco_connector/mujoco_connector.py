@@ -320,7 +320,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         body = self._mj_data.body(body_id)
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
-            info=f"Getting body id of {body_name}",
+            info=f"Getting body {body_name}",
             result=body
         )
 
@@ -506,7 +506,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         joint = self._mj_data.joint(joint_id)
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
-            info=f"Getting joint id of {joint_name}",
+            info=f"Getting joint {joint_name}",
             result=joint
         )
 
@@ -564,6 +564,31 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
             info=f"Set joints values of {joints_values}"
+        )
+
+    @MultiverseSimulator.multiverse_callback
+    def get_all_actuator_names(self) -> MultiverseCallbackResult:
+        result = [self._mj_model.actuator(actuator_id).name for actuator_id in
+                  range(self._mj_model.nu)]
+        return MultiverseCallbackResult(
+            type=MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
+            info="Getting all actuator names",
+            result=result
+        )
+
+    @MultiverseSimulator.multiverse_callback
+    def get_actuator(self, actuator_name: str) -> MultiverseCallbackResult:
+        actuator_id = mujoco.mj_name2id(m=self._mj_model, type=mujoco.mjtObj.mjOBJ_ACTUATOR, name=actuator_name)
+        if actuator_id == -1:
+            return MultiverseCallbackResult(
+                type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                info=f"Actuator {actuator_name} not found"
+            )
+        actuator = self._mj_data.actuator(actuator_id)
+        return MultiverseCallbackResult(
+            type=MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
+            info=f"Getting actuator {actuator_name}",
+            result=actuator
         )
 
     @MultiverseSimulator.multiverse_callback
@@ -1216,7 +1241,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         This method adds a new entity to the simulation. The entity can be a body, joint, geom, frame, or site.
 
         :param entity_name: The name of the new entity.
-        :param entity_type: The type of the new entity. Can be "body", "joint", "geom", "frame", or "site".
+        :param entity_type: The type of the new entity. Can be "body", "joint", "geom", "actuator", "frame", or "site".
         :param entity_properties: A dictionary of properties for the new entity.
         :param parent_name: The name of the parent body or frame to attach the new entity to. If None, the worldbody is used.
         :param parent_type: The type of the parent entity. Must be "body" for now.
@@ -1224,35 +1249,38 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         :return: A MultiverseCallbackResult object indicating the result of the operation.
         """
 
-        if parent_name is None:
-            parent_name = "world"
-            parent_type = "body"
-        if mujoco.mj_version() >= 330:
-            if parent_type == "body":
-                parent_spec = self._mj_spec.body(parent_name)
-            elif parent_type == "frame":
-                parent_spec = self._mj_spec.frame(parent_name)
+        if entity_type != "actuator":
+            if parent_name is None:
+                parent_name = "world"
+                parent_type = "body"
+            if mujoco.mj_version() >= 330:
+                if parent_type == "body":
+                    parent_spec = self._mj_spec.body(parent_name)
+                elif parent_type == "frame":
+                    parent_spec = self._mj_spec.frame(parent_name)
+                else:
+                    return MultiverseCallbackResult(
+                        type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                        info=f"Parent type {parent_type} is not supported"
+                    )
             else:
+                if parent_type == "body":
+                    parent_spec = self._mj_spec.find_body(parent_name)
+                elif parent_type == "frame":
+                    parent_spec = self._mj_spec.find_frame(parent_name)
+                else:
+                    return MultiverseCallbackResult(
+                        type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                        info=f"Parent type {parent_type} is not supported"
+                    )
+            if parent_spec is None:
                 return MultiverseCallbackResult(
                     type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
-                    info=f"Parent type {parent_type} is not supported"
+                    info=f"Parent body {body_name} not found"
                 )
         else:
-            if parent_type == "body":
-                parent_spec = self._mj_spec.find_body(parent_name)
-            elif parent_type == "frame":
-                parent_spec = self._mj_spec.find_frame(parent_name)
-            else:
-                return MultiverseCallbackResult(
-                    type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
-                    info=f"Parent type {parent_type} is not supported"
-                )
-        if parent_spec is None:
-            return MultiverseCallbackResult(
-                type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
-                info=f"Parent body {body_name} not found"
-            )
-        if entity_type not in ["body", "joint", "geom", "frame", "site"]:
+            parent_spec = self._mj_spec
+        if entity_type not in ["body", "joint", "geom", "actuator", "frame", "site"]:
             return MultiverseCallbackResult(
                 type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
                 info=f"Entity type {entity_type} is not supported"
