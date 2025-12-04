@@ -285,7 +285,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
         if not self.headless:
             self._renderer._sim().load(self._mj_model, self._mj_data, "")
-            mujoco.mj_step1(self._mj_model, self._mj_data)
+            if self.simulation_thread is None:
+                mujoco.mj_step1(self._mj_model, self._mj_data)
 
     @property
     def file_path(self) -> str:
@@ -415,7 +416,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                 info=f"Body {body_name} is already at position {position}"
             )
         self._mj_data.qpos[qpos_adr:qpos_adr + 3] = position
-        mujoco.mj_step1(self._mj_model, self._mj_data)
+        if self.simulation_thread is None:
+            mujoco.mj_step1(self._mj_model, self._mj_data)
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
             info=f"Set body {body_name} to position {position}"
@@ -457,7 +459,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                 info=f"Body {body_name} is already at quaternion {quaternion}"
             )
         self._mj_data.qpos[qpos_adr + 3:qpos_adr + 7] = quaternion
-        mujoco.mj_step1(self._mj_model, self._mj_data)
+        if self.simulation_thread is None:
+            mujoco.mj_step1(self._mj_model, self._mj_data)
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
             info=f"Set body {body_name} to quaternion (WXYZ) {quaternion}"
@@ -548,7 +551,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                 info=f"Joint {joint_name} is already at value {value}"
             )
         joint.qpos[0] = value
-        mujoco.mj_step1(self._mj_model, self._mj_data)
+        if self.simulation_thread is None:
+            mujoco.mj_step1(self._mj_model, self._mj_data)
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
             info=f"Set joint {joint_name} to value {value}"
@@ -711,7 +715,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         # body_1_spec_new.quat = relative_quaternion
         self._mj_spec.detach_body(body_1_spec)
         self._fix_prefix_and_recompile(body_1_spec_new, dummy_prefix, body_1_name)
-        mujoco.mj_step1(self._mj_model, self._mj_data)
+        if self.simulation_thread is None:
+            mujoco.mj_step1(self._mj_model, self._mj_data)
 
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
@@ -771,7 +776,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             body_spec_new.add_freejoint()
         self._mj_spec.detach_body(body_spec)
         self._fix_prefix_and_recompile(body_spec_new, dummy_prefix, body_name)
-        mujoco.mj_step1(self._mj_model, self._mj_data)
+        if self.simulation_thread is None:
+            mujoco.mj_step1(self._mj_model, self._mj_data)
 
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
@@ -1058,7 +1064,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                 self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
                 if not self.headless:
                     self._renderer._sim().load(self._mj_model, self._mj_data, "")
-                    mujoco.mj_step1(self._mj_model, self._mj_data)
+                    if self.simulation_thread is None:
+                        mujoco.mj_step1(self._mj_model, self._mj_data)
                 key_id = mujoco.mj_name2id(m=self._mj_model, type=mujoco.mjtObj.mjOBJ_KEY, name=key_name)
         mujoco.mj_setKeyframe(self._mj_model, self._mj_data, key_id)
         if file_path is not None:
@@ -1091,7 +1098,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
             if not self.headless:
                 self._renderer._sim().load(self._mj_model, self._mj_data, "")
-                mujoco.mj_step1(self._mj_model, self._mj_data)
+                if self.simulation_thread is None:
+                    mujoco.mj_step1(self._mj_model, self._mj_data)
             if key_id >= self._mj_model.nkey:
                 return MultiverseCallbackResult(
                     type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
@@ -1229,7 +1237,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
         if not self.headless:
             self._renderer._sim().load(self._mj_model, self._mj_data, "")
-            mujoco.mj_step1(self._mj_model, self._mj_data)
+            if self.simulation_thread is None:
+                mujoco.mj_step1(self._mj_model, self._mj_data)
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
             info=f"Enabled contact between {body_1_name} and {body_2_name}"
@@ -1305,7 +1314,8 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
         if not self.headless:
             self._renderer._sim().load(self._mj_model, self._mj_data, "")
-            mujoco.mj_step1(self._mj_model, self._mj_data)
+            if self.simulation_thread is None:
+                mujoco.mj_step1(self._mj_model, self._mj_data)
         self.unpause()
         return MultiverseCallbackResult(
             type=MultiverseCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
