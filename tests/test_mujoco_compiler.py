@@ -11,7 +11,7 @@ from multiverse_simulator import multiverse_simulator_compiler_main
 current_dir = os.path.dirname(__file__)
 scripts_dir = os.path.abspath(os.path.join(current_dir, '..', 'scripts'))
 sys.path.insert(0, scripts_dir)
-from mujoco_compiler import MujocoCompiler
+from mv_mujoco_compiler import MujocoCompiler
 
 
 resources_path = os.path.join(os.path.dirname(__file__), "..", "resources")

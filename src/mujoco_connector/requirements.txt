@@ -1,2 +1,1 @@
-mujoco==3.3.7
-mujoco-mjx==3.3.7
+mujoco

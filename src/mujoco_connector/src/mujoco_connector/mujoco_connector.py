@@ -4,15 +4,12 @@
 
 import os
 
-os.environ['XLA_FLAGS'] = '--xla_gpu_triton_gemm_any=true'
 import xml.etree.ElementTree as ET
 from typing import Optional, List, Set, Dict, Union, Any
 
-import jax
 import mujoco
 import mujoco.viewer
 import numpy
-from mujoco import mjx
 
 from multiverse_simulator import (MultiverseSimulator, MultiverseRenderer, MultiverseViewer,
                                   MultiverseCallback, MultiverseCallbackResult, MultiverseSimulatorState)
@@ -40,9 +37,6 @@ class MultiverseMujocoRenderer(MultiverseRenderer):
 class MultiverseMujocoConnector(MultiverseSimulator):
     """Multiverse MuJoCo Connector class"""
 
-    use_mjx: bool = False
-    """Use MJX (https://mujoco.readthedocs.io/en/stable/mjx.html)"""
-
     def __init__(self,
                  file_path: str,
                  viewer: Optional[MultiverseViewer] = None,
@@ -51,12 +45,10 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                  real_time_factor: float = 1.0,
                  step_size: float = 1E-3,
                  callbacks: Optional[List[MultiverseCallback]] = None,
-                 use_mjx: bool = False,
                  **kwargs):
         self._file_path = file_path
         root = ET.parse(file_path).getroot()
         self.name = root.attrib.get("model", self.name)
-        self.use_mjx = use_mjx
         super().__init__(viewer, number_of_envs, headless, real_time_factor, step_size, callbacks, **kwargs)
         for plugin in get_multiverse_connector_plugins():
             plugin_name = os.path.basename(plugin)
@@ -75,7 +67,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_spec.option.timestep = self.step_size
         if kwargs.get('multiccd', False):
             self._mj_spec.option.enableflags |= mujoco.mjtEnableBit.mjENBL_MULTICCD
-        if kwargs.get('energy', True) and not self.use_mjx:
+        if kwargs.get('energy', True):
             self._mj_spec.option.enableflags |= mujoco.mjtEnableBit.mjENBL_ENERGY
         if not kwargs.get('contact', True):
             self._mj_spec.option.disableflags |= mujoco.mjtDisableBit.mjDSBL_CONTACT
@@ -92,17 +84,6 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_data = mujoco.MjData(self._mj_model)
 
         mujoco.mj_resetDataKeyframe(self._mj_model, self._mj_data, 0)
-        if self.use_mjx:
-            self._mjx_model = mjx.put_model(self._mj_model)
-            self._mjx_data = mjx.put_data(self._mj_model, self._mj_data)
-            qpos0 = numpy.array([self._mj_data.qpos for _ in range(number_of_envs)])
-            qvel0 = numpy.array([self._mj_data.qvel for _ in range(number_of_envs)])
-            act0 = numpy.array([self._mj_data.act for _ in range(number_of_envs)])
-            ctrl0 = numpy.array([self._mj_data.ctrl for _ in range(number_of_envs)])
-            self._batch = jax.vmap(lambda qpos, qvel, act, ctrl:
-                                   self._mjx_data.replace(qpos=qpos, qvel=qvel, act=act, ctrl=ctrl))(qpos0, qvel0,
-                                                                                                     act0, ctrl0)
-            self._jit_step = jax.jit(jax.vmap(mjx.step, in_axes=(None, 0)))
 
     def start_callback(self):
         if not self.headless:
@@ -170,97 +151,53 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                 i += attr_size[mj_attr_name]
 
     def step_callback(self):
-        if self.use_mjx:
-            self._batch = self._jit_step(self._mjx_model, self._batch)
-            if not self.headless:
-                self._mj_data = mjx.get_data(self._mj_model, self._batch)
-        else:
-            if self.render_thread is not None:
-                with self.renderer.lock():
-                    if self.state == MultiverseSimulatorState.RUNNING:
-                        self._current_number_of_steps += 1
-                        mujoco.mj_step(self._mj_model, self._mj_data)
-                    elif self.state == MultiverseSimulatorState.PAUSED:
-                        mujoco.mj_kinematics(self._mj_model, self._mj_data)
-            else:
+        if self.render_thread is not None:
+            with self.renderer.lock():
                 if self.state == MultiverseSimulatorState.RUNNING:
                     self._current_number_of_steps += 1
                     mujoco.mj_step(self._mj_model, self._mj_data)
                 elif self.state == MultiverseSimulatorState.PAUSED:
                     mujoco.mj_kinematics(self._mj_model, self._mj_data)
+        else:
+            if self.state == MultiverseSimulatorState.RUNNING:
+                self._current_number_of_steps += 1
+                mujoco.mj_step(self._mj_model, self._mj_data)
+            elif self.state == MultiverseSimulatorState.PAUSED:
+                mujoco.mj_kinematics(self._mj_model, self._mj_data)
 
     def reset_callback(self):
         mujoco.mj_resetDataKeyframe(self._mj_model, self._mj_data, 0)
-        if self.use_mjx:
-            number_of_envs = self._batch.time.shape[0]
-            qpos0 = numpy.array([self._mj_data.qpos for _ in range(number_of_envs)])
-            qvel0 = numpy.array([self._mj_data.qvel for _ in range(number_of_envs)])
-            act0 = numpy.array([self._mj_data.act for _ in range(number_of_envs)])
-            ctrl0 = numpy.array([self._mj_data.ctrl for _ in range(number_of_envs)])
-            self._batch = jax.vmap(lambda qpos, qvel, act, ctrl:
-                                   self._mjx_data.replace(qpos=qpos, qvel=qvel, act=act, ctrl=ctrl))(qpos0, qvel0,
-                                                                                                     act0, ctrl0)
 
     def write_data_to_simulator(self, write_data: numpy.ndarray):
-        if not self.use_mjx and write_data.shape[0] > 1:
-            raise NotImplementedError("Multiple environments for non MJX is not supported yet")
-        if self.use_mjx:
-            batch_data = {}
-            for attr, indices in self._write_ids.items():
-                if attr in {"xpos", "xquat"}:
-                    for i, body_id in enumerate(indices[0]):
-                        jntid = self._mj_model.body(body_id).jntadr[0]
-                        jnt = self._mj_model.jnt(jntid)
-                        assert jnt.type == mujoco.mjtJoint.mjJNT_FREE
-                        qpos_adr = jnt.qposadr[0]
-                        batch_data["qpos"] = numpy.array(self._batch.qpos)
-                        if attr == "xpos":  # TODO: Check it again
-                            batch_data["qpos"][:, qpos_adr:qpos_adr + 3] = write_data[:, indices[1]][3 * i:3 * i + 3]
-                        elif attr == "xquat":
-                            batch_data["qpos"][:, qpos_adr + 3:qpos_adr + 7] = write_data[:, indices[1]][
-                                                                               4 * i:4 * i + 4]
-                elif attr == "energy":
-                    raise NotImplementedError("Not supported")
-                else:
-                    batch_data[attr] = numpy.array(getattr(self._batch, attr))
-                    batch_data[attr][:, indices[0]] = write_data[:, indices[1]]
-            self._batch = self._batch.replace(**batch_data)
-        else:
-            for attr, indices in self._write_ids.items():
-                if attr in {"xpos", "xquat"}:
-                    for i, body_id in enumerate(indices[0]):
-                        jntid = self._mj_model.body(body_id).jntadr[0]
-                        jnt = self._mj_model.jnt(jntid)
-                        assert jnt.type == mujoco.mjtJoint.mjJNT_FREE
-                        qpos_adr = jnt.qposadr[0]
-                        if attr == "xpos":
-                            self._mj_data.qpos[qpos_adr:qpos_adr + 3] = write_data[0][indices[1][3 * i:3 * i + 3]]
-                        elif attr == "xquat":
-                            self._mj_data.qpos[qpos_adr + 3:qpos_adr + 7] = write_data[0][indices[1][4 * i:4 * i + 4]]
-                elif attr == "energy":
-                    raise NotImplementedError("Not supported")
-                else:
-                    getattr(self._mj_data, attr)[indices[0]] = write_data[0][indices[1]]
+        if write_data.shape[0] > 1:
+            raise NotImplementedError("Multiple environments is not supported yet")
+        for attr, indices in self._write_ids.items():
+            if attr in {"xpos", "xquat"}:
+                for i, body_id in enumerate(indices[0]):
+                    jntid = self._mj_model.body(body_id).jntadr[0]
+                    jnt = self._mj_model.jnt(jntid)
+                    assert jnt.type == mujoco.mjtJoint.mjJNT_FREE
+                    qpos_adr = jnt.qposadr[0]
+                    if attr == "xpos":
+                        self._mj_data.qpos[qpos_adr:qpos_adr + 3] = write_data[0][indices[1][3 * i:3 * i + 3]]
+                    elif attr == "xquat":
+                        self._mj_data.qpos[qpos_adr + 3:qpos_adr + 7] = write_data[0][indices[1][4 * i:4 * i + 4]]
+            elif attr == "energy":
+                raise NotImplementedError("Not supported")
+            else:
+                getattr(self._mj_data, attr)[indices[0]] = write_data[0][indices[1]]
 
     def read_data_from_simulator(self, read_data: numpy.ndarray):
         if read_data.shape[1] == 0:
             return
-        if not self.use_mjx and read_data.shape[0] > 1:
-            raise NotImplementedError("Multiple environments for non MJX is not supported yet")
-        if self.use_mjx:
-            for attr, indices in tuple(self._read_ids.items()):
-                if attr == "energy":
-                    read_data[:, indices[1]] = self._mj_data.energy
-                else:
-                    attr_values = getattr(self._batch, attr)
-                    read_data[:, indices[1]] = attr_values[:, indices[0]].reshape(attr_values.shape[0], -1)
-        else:
-            for attr, indices in tuple(self._read_ids.items()):
-                if attr == "energy":
-                    read_data[0][indices[1]] = self._mj_data.energy
-                else:
-                    attr_values = getattr(self._mj_data, attr)
-                    read_data[0][indices[1]] = attr_values[indices[0]].reshape(-1)
+        if read_data.shape[0] > 1:
+            raise NotImplementedError("Multiple environments is not supported yet")
+        for attr, indices in tuple(self._read_ids.items()):
+            if attr == "energy":
+                read_data[0][indices[1]] = self._mj_data.energy
+            else:
+                attr_values = getattr(self._mj_data, attr)
+                read_data[0][indices[1]] = attr_values[indices[0]].reshape(-1)
 
     def _fix_prefix_and_recompile(self, body_spec: mujoco.MjsBody, dummy_prefix: str, body_name: str):
         body_spec.name = body_name
@@ -294,7 +231,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
 
     @property
     def current_simulation_time(self) -> float:
-        return self._mj_data.time if not self.use_mjx else self._batch.time[0]
+        return self._mj_data.time
 
     @property
     def renderer(self):
@@ -1285,7 +1222,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             if parent_spec is None:
                 return MultiverseCallbackResult(
                     type=MultiverseCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
-                    info=f"Parent body {body_name} not found"
+                    info=f"Parent body {parent_name} not found"
                 )
         else:
             parent_spec = self._mj_spec

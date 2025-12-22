@@ -18,5 +18,3 @@ from .multiverse_simulator_compiler import (
 )
 
 from .utils import str_to_dict
-
-from .multiverse_simulator_main import multiverse_simulator_main

@@ -1,6 +1,6 @@
 [project]
 name = "multiverse_simulators"
-version = "0.0.9"
+version = "0.0.10"
 authors = [
   { name="Giang Nguyen", email="hoanggia@uni-bremen.de" },
 ]
@@ -15,7 +15,6 @@ license = "MIT"
 
 dependencies = [
     "mujoco>=3.3.0",
-    "mujoco-mjx>=3.3.0"
 ]
 
 [project.urls]

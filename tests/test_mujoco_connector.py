@@ -1,10 +1,7 @@
 import os
 import time
 import unittest
-import xml.etree.ElementTree as ET
 
-import mujoco
-import mujoco.viewer
 import numpy
 from mujoco_connector import MultiverseMujocoConnector
 from multiverse_simulator import MultiverseSimulatorConstraints, MultiverseSimulatorState, MultiverseViewer, \
@@ -14,13 +11,11 @@ from test_multiverse_simulator import MultiverseSimulatorTestCase
 resources_path = os.path.join(os.path.dirname(__file__), "..", "resources")
 
 
-# @unittest.skip("This test is not meant to be run in CI")
 class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
     file_path = os.path.join(resources_path, "mjcf/floor/floor.xml")
     Simulator = MultiverseMujocoConnector
     headless = False
     step_size = 1E-3
-    use_mjx = False
 
     def test_functions(self):
         simulator = self.Simulator(
@@ -312,12 +307,12 @@ class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
             simulator.step()
         simulator.stop()
 
+
 class MultiverseMujocoConnectorHeadlessBaseTestCase(MultiverseMujocoConnectorBaseTestCase):
     file_path = os.path.join(resources_path, "mjcf/floor/floor.xml")
     Simulator = MultiverseMujocoConnector
     headless = True
     step_size = 1E-3
-    use_mjx = False
 
 
 # @unittest.skip("This test is not meant to be run in CI")
@@ -434,9 +429,11 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
             time.sleep(0.01)
             self.assertEqual(viewer.read_data.shape, (1, 8))
             if simulator.current_simulation_time > 1.0:
-                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_angular_position"].values[0][0], act_1_value,
+                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_angular_position"].values[0][0],
+                                       act_1_value,
                                        places=0)
-                self.assertAlmostEqual(viewer.read_objects["joint2"]["joint_angular_position"].values[0][0], act_2_value,
+                self.assertAlmostEqual(viewer.read_objects["joint2"]["joint_angular_position"].values[0][0],
+                                       act_2_value,
                                        places=0)
         self.assertIs(simulator.state, MultiverseSimulatorState.STOPPED)
         save_file_path = os.path.join(resources_path, "../output/data.csv")
@@ -529,7 +526,8 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
                 self.assertEqual(viewer.write_objects["box"]["quaternion"].values[0][2], 0.707)
                 self.assertEqual(viewer.write_objects["box"]["quaternion"].values[0][3], 0.0)
                 self.assertEqual(viewer.read_data.shape, (1, 10))
-                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_angular_position"].values[0][0], 1.0, places=3)
+                self.assertAlmostEqual(viewer.read_objects["joint1"]["joint_angular_position"].values[0][0], 1.0,
+                                       places=3)
                 self.assertEqual(viewer.read_objects["actuator2"]["cmd_joint_angular_position"].values[0][0], 2.0)
                 self.assertEqual(viewer.read_objects["box"]["position"].values[0][0], 1.1)
                 self.assertEqual(viewer.read_objects["box"]["position"].values[0][1], 2.2)
@@ -542,91 +540,6 @@ class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTest
                 self.assertEqual(viewer.read_data.shape, (1, 0))
         simulator.stop()
         self.assertIs(simulator.state, MultiverseSimulatorState.STOPPED)
-
-    @unittest.skip("This test is not meant to be run in CI")
-    def test_running_with_mjx_in_10s(self):
-        simulator = MultiverseMujocoConnector(file_path=os.path.join(resources_path, "mjcf/unitree/h1_scene.xml"),
-                                              use_mjx=True,
-                                              headless=False,
-                                              real_time_factor=-1,
-                                              step_size=0.001)
-        constraints = MultiverseSimulatorConstraints(max_simulation_time=10.0)
-        simulator.start(constraints=constraints)
-        while simulator.state != MultiverseSimulatorState.STOPPED:
-            time.sleep(1)
-        self.assertIs(simulator.state, MultiverseSimulatorState.STOPPED)
-
-
-@unittest.skip("This test is not meant to be run in CI")
-class MujocoSpeedTestCase(unittest.TestCase):
-    file_path = os.path.join(resources_path, "mjcf/mujoco_menagerie/franka_emika_panda/mjx_single_cube.xml")
-    step_size = 5E-4
-    real_time_factor = 1.0
-    lib_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "build", "mujoco", "lib",
-                            "libmultiverse_connector.so")
-    include_extension = """
-    <extension>
-        <plugin plugin="mujoco.multiverse_connector">
-              <instance name="mujoco_client">
-                    <config key="host" value="tcp://127.0.0.1"/>
-                    <config key="server_port" value="7000"/>
-                    <config key="client_port" value="7500"/>
-                    <config key="world_name" value="world"/>
-                    <config key="simulation_name" value="mujoco_sim"/>
-                    <config key="send" value="{'world': ['position', 'quaternion']}" />
-              </instance>
-        </plugin>
-    </extension>
-    """
-
-    def test_simulation(self):
-        # Load the model
-        model = mujoco.MjModel.from_xml_path(self.file_path)
-        data = mujoco.MjData(model)
-
-        # Create a viewer within the thread
-        with mujoco.viewer.launch_passive(model, data) as viewer:
-            while viewer.is_running():
-                mujoco.mj_step(model, data)
-                viewer.sync()
-                time.sleep(0.001)  # Control the simulation speed
-
-    def test_running_speed(self):
-        m = mujoco.MjModel.from_xml_path(self.file_path)
-        m.opt.timestep = self.step_size
-        d = mujoco.MjData(m)
-        with mujoco.viewer.launch_passive(m, d) as viewer:
-            time_now = time.time()
-            start_real_time = time.time()
-            while viewer.is_running():
-                real_time_pass = time.time() - start_real_time
-                simulation_time_pass = d.time * self.real_time_factor
-                delta_time = simulation_time_pass - real_time_pass
-                if delta_time <= self.step_size:
-                    mujoco.mj_step(m, d)
-                if delta_time > self.step_size * 10:
-                    print(
-                        f"Real time is {delta_time} seconds ({delta_time / self.step_size} step_size) behind simulation time")
-                elif delta_time < -self.step_size * 10:
-                    print(
-                        f"Real time is {-delta_time} seconds ({-delta_time / self.step_size} step_size) ahead of simulation time")
-                if time.time() - time_now > 1.0 / 60.0:
-                    viewer.sync()
-                    time_now = time.time()
-
-    def test_running_with_multiverse(self):
-        """
-        This test must be run with 'multiverse_server' running
-        """
-        mujoco.mj_loadPluginLibrary(self.lib_path)
-        file_xml = ET.parse(os.path.join(resources_path, "mjcf/floor/floor.xml"))
-        root = file_xml.getroot()
-        root.append(ET.fromstring(self.include_extension))
-        file_xml_string = ET.tostring(root, encoding='unicode', method='xml')
-        m = mujoco.MjModel.from_xml_string(file_xml_string)
-        self.assertIsNotNone(m)
-        d = mujoco.MjData(m)
-        self.assertEqual(d.time, 0.0)
 
 
 if __name__ == '__main__':
