@@ -54,8 +54,6 @@ def main():
         parser = argparse.ArgumentParser(description="Run the Mujoco Connector")
         parser.add_argument("--file_path", type=str, required=True,
                             help="Path to the Mujoco XML file")
-        parser.add_argument("--use_mjx", required=False, action='store_true',
-                            help="Use MJX (https://mujoco.readthedocs.io/en/stable/mjx.html)")
         parser.add_argument("--headless", required=False, action='store_true',
                             help="Run in headless mode")
         parser.add_argument("--real_time_factor", type=float, required=False, default=1.0,
@@ -93,6 +91,7 @@ def main():
                                               headless=args.headless,
                                               real_time_factor=args.real_time_factor,
                                               step_size=args.step_size,
+                                              multiverse_params=multiverse_params
                                               **unknown_args_dict)
         simulator.start(simulate_in_thread=False)
         if args.max_real_time is not None or args.max_number_of_steps is not None or args.max_simulation_time is not None:

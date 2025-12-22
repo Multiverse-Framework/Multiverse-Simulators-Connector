@@ -45,6 +45,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                  real_time_factor: float = 1.0,
                  step_size: float = 1E-3,
                  callbacks: Optional[List[MultiverseCallback]] = None,
+                 multiverse_params: Optional[Dict[str, Any]] = None,
                  **kwargs):
         self._file_path = file_path
         root = ET.parse(file_path).getroot()
