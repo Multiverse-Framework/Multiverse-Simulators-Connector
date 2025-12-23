@@ -185,7 +185,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
                             self._mj_data.qpos[qpos_adr:qpos_adr + 3] = write_data[0][indices[1][3 * i:3 * i + 3]]
                         elif attr == "xquat":
                             self._mj_data.qpos[qpos_adr + 3:qpos_adr + 7] = write_data[0][indices[1][4 * i:4 * i + 4]]
-                    elif mocapid != 1:
+                    elif mocapid != -1:
                         if attr == "xpos":
                             self._mj_data.mocap_pos[mocapid] = write_data[0][indices[1][3 * i:3 * i + 3]]
                         elif attr == "xquat":
