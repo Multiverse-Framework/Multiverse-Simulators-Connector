@@ -176,13 +176,21 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             if attr in {"xpos", "xquat"}:
                 for i, body_id in enumerate(indices[0]):
                     jntid = self._mj_model.body(body_id).jntadr[0]
-                    jnt = self._mj_model.jnt(jntid)
-                    assert jnt.type == mujoco.mjtJoint.mjJNT_FREE
-                    qpos_adr = jnt.qposadr[0]
-                    if attr == "xpos":
-                        self._mj_data.qpos[qpos_adr:qpos_adr + 3] = write_data[0][indices[1][3 * i:3 * i + 3]]
-                    elif attr == "xquat":
-                        self._mj_data.qpos[qpos_adr + 3:qpos_adr + 7] = write_data[0][indices[1][4 * i:4 * i + 4]]
+                    mocapid = self._mj_model.body(body_id).mocapid[0]
+                    if jntid != -1:
+                        jnt = self._mj_model.jnt(jntid)
+                        assert jnt.type == mujoco.mjtJoint.mjJNT_FREE
+                        qpos_adr = jnt.qposadr[0]
+                        if attr == "xpos":
+                            self._mj_data.qpos[qpos_adr:qpos_adr + 3] = write_data[0][indices[1][3 * i:3 * i + 3]]
+                        elif attr == "xquat":
+                            self._mj_data.qpos[qpos_adr + 3:qpos_adr + 7] = write_data[0][indices[1][4 * i:4 * i + 4]]
+                    elif mocapid != 1:
+                        if attr == "xpos":
+                            self._mj_data.mocap_pos[mocapid] = write_data[0][indices[1][3 * i:3 * i + 3]]
+                        elif attr == "xquat":
+                            self._mj_data.mocap_quat[mocapid] = write_data[0][indices[1][4 * i:4 * i + 4]]
+
             elif attr == "energy":
                 raise NotImplementedError("Not supported")
             else:
