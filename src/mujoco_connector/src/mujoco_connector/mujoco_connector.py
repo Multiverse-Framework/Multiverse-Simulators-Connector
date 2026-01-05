@@ -755,10 +755,7 @@ class MultiverseMujocoConnector(MultiverseSimulator):
             body_ids.update(self.get_children_ids(body_id))
 
         contact_body_ids = set()
-        for contact_id in range(self._mj_data.ncon):
-            contact = self._mj_data.contact[contact_id]
-            if contact.exclude != 0 and contact.exclude != 1:
-                continue
+        for contact in self._mj_data.contact:
             geom_1_id = contact.geom1
             geom_2_id = contact.geom2
             body_1_id = self._mj_model.geom_bodyid[geom_1_id]
