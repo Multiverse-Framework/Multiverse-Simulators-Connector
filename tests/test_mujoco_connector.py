@@ -10,6 +10,7 @@ from test_multiverse_simulator import MultiverseSimulatorTestCase
 
 resources_path = os.path.join(os.path.dirname(__file__), "..", "resources")
 headless = os.environ.get("CI", "false").lower() == "true"
+# headless = False
 
 class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
     file_path = os.path.join(resources_path, "mjcf/floor/floor.xml")
@@ -19,7 +20,7 @@ class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
 
     def test_functions(self):
         simulator = self.Simulator(
-            file_path=os.path.join(resources_path, "mjcf/mjx_single_cube.xml"))
+            file_path=os.path.join(resources_path, "mjcf/mjx_single_cube.xml"), headless=self.headless, step_size=self.step_size)
         simulator.start(simulate_in_thread=False, render_in_thread=True)
 
         for step in range(4000):
@@ -251,13 +252,6 @@ class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
             simulator.step()
             time.sleep(0.001)
         simulator.stop()
-
-
-class MultiverseMujocoConnectorHeadlessBaseTestCase(MultiverseMujocoConnectorBaseTestCase):
-    file_path = os.path.join(resources_path, "mjcf/floor/floor.xml")
-    Simulator = MultiverseMujocoConnector
-    headless = headless
-    step_size = 1E-3
 
 
 # @unittest.skip("This test is not meant to be run in CI")
