@@ -9,11 +9,12 @@ from multiverse_simulator import MultiverseSimulatorConstraints, MultiverseSimul
 from test_multiverse_simulator import MultiverseSimulatorTestCase
 
 resources_path = os.path.join(os.path.dirname(__file__), "..", "resources")
+headless = os.environ.get("CI", "false").lower() == "true"
 
 class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
     file_path = os.path.join(resources_path, "mjcf/floor/floor.xml")
     Simulator = MultiverseMujocoConnector
-    headless = False
+    headless = headless
     step_size = 1E-3
 
     def test_functions(self):
@@ -255,7 +256,7 @@ class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
 class MultiverseMujocoConnectorHeadlessBaseTestCase(MultiverseMujocoConnectorBaseTestCase):
     file_path = os.path.join(resources_path, "mjcf/floor/floor.xml")
     Simulator = MultiverseMujocoConnector
-    headless = True
+    headless = headless
     step_size = 1E-3
 
 
@@ -263,7 +264,7 @@ class MultiverseMujocoConnectorHeadlessBaseTestCase(MultiverseMujocoConnectorBas
 class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTestCase):
     file_path = os.path.join(resources_path, "mjcf/mjx_single_cube.xml")
     Simulator = MultiverseMujocoConnector
-    headless = False
+    headless = headless
     step_size = 5E-4
 
     def test_running_in_10s_in_1(self):

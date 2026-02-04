@@ -403,7 +403,7 @@ class MultiverseSimulator:
         :param step_size: float, step size
         :param callbacks: List[MultiverseCallback], list of callback functions
         """
-        self._headless = headless if not os.environ.get("CI", "false").lower() == "true" else True
+        self._headless = headless
         self._real_time_factor = real_time_factor
         self._step_size = step_size
         self._current_number_of_steps = 0

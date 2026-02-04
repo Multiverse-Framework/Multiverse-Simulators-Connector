@@ -259,7 +259,10 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
         for key in self._mj_spec.keys:
             if key.name != "home":
-                key.delete()
+                if mujoco.mj_version() < 340:
+                    key.delete()
+                else:
+                    self._mj_spec.delete(key)
         self._mj_model, self._mj_data = self._mj_spec.recompile(self._mj_model, self._mj_data)
         if not self.headless:
             self._renderer._sim().load(self._mj_model, self._mj_data, "")
@@ -691,7 +694,10 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         # body_1_spec_new = body_2_frame.attach_body(body_1_spec, dummy_prefix, "")
         # body_1_spec_new.pos = relative_position
         # body_1_spec_new.quat = relative_quaternion
-        self._mj_spec.detach_body(body_1_spec)
+        if mujoco.mj_version() < 340:
+            self._mj_spec.detach_body(body_1_spec)
+        else:
+            self._mj_spec.delete(body_1_spec)
         self._fix_prefix_and_recompile(body_1_spec_new, dummy_prefix, body_1_name)
         if self.simulation_thread is None:
             mujoco.mj_step1(self._mj_model, self._mj_data)
@@ -752,7 +758,10 @@ class MultiverseMujocoConnector(MultiverseSimulator):
         #     body_1_spec.add_site(site_child)
         if add_freejoint:
             body_spec_new.add_freejoint()
-        self._mj_spec.detach_body(body_spec)
+        if mujoco.mj_version() < 340:
+            self._mj_spec.detach_body(body_spec)
+        else:
+            self._mj_spec.delete(body_spec)
         self._fix_prefix_and_recompile(body_spec_new, dummy_prefix, body_name)
         if self.simulation_thread is None:
             mujoco.mj_step1(self._mj_model, self._mj_data)
