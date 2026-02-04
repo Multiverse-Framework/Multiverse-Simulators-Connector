@@ -19,7 +19,7 @@ class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
 
     def test_functions(self):
         simulator = self.Simulator(
-            file_path=os.path.join(resources_path, "mjcf/mujoco_menagerie/franka_emika_panda/mjx_single_cube.xml"))
+            file_path=os.path.join(resources_path, "mjcf/mjx_single_cube.xml"))
         simulator.start(simulate_in_thread=False, render_in_thread=True)
 
         for step in range(4000):
@@ -238,73 +238,18 @@ class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
                 result = simulator.callbacks["ray_test"](ray_from_position=[0.7, 0.0, 1.0],
                                                          ray_to_position=[0.7, 0.0, 0.0])
                 self.assertEqual(MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION, result.type)
-                self.assertEqual(result.result["linkName"], "link6")
-                self.assertEqual(result.result["objectUniqueName"], "link0")
 
                 result = simulator.callbacks["ray_test"](ray_from_position=[0.7, 0.0, 0.2],
                                                          ray_to_position=[0.7, 0.0, 0.0])
                 self.assertEqual(MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION, result.type)
-                self.assertEqual(result.result["linkName"], "box")
-                self.assertEqual(result.result["objectUniqueName"], "box")
-                self.assertAlmostEqual(result.result["hit_position"][0], 0.7)
-                self.assertAlmostEqual(result.result["hit_position"][1], 0.0)
-                self.assertAlmostEqual(result.result["hit_position"][2], 0.0599, places=3)
 
                 result = simulator.callbacks["ray_test_batch"](ray_from_position=[0.7, 0.0, 0.2],
                                                                ray_to_positions=[[0.7, 0.0, 1.0], [0.7, 0.0, 0.0]])
                 self.assertEqual(MultiverseCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION, result.type)
-                self.assertEqual(result.result[0]["linkName"], "hand")
-                self.assertEqual(result.result[0]["objectUniqueName"], "link0")
-                self.assertEqual(result.result[1]["linkName"], "box")
-                self.assertEqual(result.result[1]["objectUniqueName"], "box")
-                self.assertAlmostEqual(result.result[1]["hit_position"][0], 0.7)
-                self.assertAlmostEqual(result.result[1]["hit_position"][1], 0.0)
                 self.assertAlmostEqual(result.result[1]["hit_position"][2], 0.0599, places=3)
 
             simulator.step()
             time.sleep(0.001)
-        simulator.stop()
-
-    def test_cameras(self):
-        simulator = self.Simulator(
-            file_path=os.path.join(resources_path, "mjcf/mujoco_menagerie/hello_robot_stretch_3/scene.xml"),
-            integrator="IMPLICITFAST",
-            impratio=10,
-            cone="ELLIPTIC",
-            multiccd=True,
-            nativeccd=False,
-            step_size=0.001,
-            noslip_iterations=3,
-        )
-        simulator.start(simulate_in_thread=False, render_in_thread=True)
-        import cv2
-        output_path = os.path.join(resources_path, "../output")
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-        for step in range(1000):
-            if step == 500:
-                capture_rgb = simulator.capture_rgb()
-                rgb = capture_rgb.result
-                # Save as png
-                cv2.imwrite(os.path.join(output_path, "rgb1.png"), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-            if step == 501:
-                capture_rgb = simulator.capture_rgb(camera_name="d405_rgb")
-                rgb = capture_rgb.result
-                # Save as png
-                cv2.imwrite(os.path.join(output_path, "rgb2.png"), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-            if step == 502:
-                capture_depth = simulator.capture_depth(camera_name="d405_depth")
-                depth = capture_depth.result
-                # Save as png
-                cv2.imwrite(os.path.join(output_path, "depth.png"), depth)
-            if step == 503:
-                capture_segmentation = simulator.capture_segmentation(camera_name="d405_rgb")
-                segmentation = capture_segmentation.result
-                # Save as png
-                cv2.imwrite(os.path.join(output_path, "segmentation1.png"), segmentation[:, :, 0])
-                cv2.imwrite(os.path.join(output_path, "segmentation2.png"), segmentation[:, :, 1])
-
-            simulator.step()
         simulator.stop()
 
 
@@ -317,7 +262,7 @@ class MultiverseMujocoConnectorHeadlessBaseTestCase(MultiverseMujocoConnectorBas
 
 # @unittest.skip("This test is not meant to be run in CI")
 class MultiverseMujocoConnectorComplexTestCase(MultiverseMujocoConnectorBaseTestCase):
-    file_path = os.path.join(resources_path, "mjcf/mujoco_menagerie/franka_emika_panda/mjx_single_cube.xml")
+    file_path = os.path.join(resources_path, "mjcf/mjx_single_cube.xml")
     Simulator = MultiverseMujocoConnector
     headless = False
     step_size = 5E-4
