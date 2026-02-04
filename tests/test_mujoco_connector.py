@@ -9,7 +9,7 @@ from multiverse_simulator import MultiverseSimulatorConstraints, MultiverseSimul
 from test_multiverse_simulator import MultiverseSimulatorTestCase
 
 resources_path = os.path.join(os.path.dirname(__file__), "..", "resources")
-
+headless = os.environ.get("CI", "false").lower() == "true"
 
 class MultiverseMujocoConnectorBaseTestCase(MultiverseSimulatorTestCase):
     file_path = os.path.join(resources_path, "mjcf/floor/floor.xml")

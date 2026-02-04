@@ -10,11 +10,4 @@ from .multiverse_simulator import (
     MultiverseCallback
 )
 
-from .multiverse_simulator_compiler import (
-    multiverse_simulator_compiler_main,
-    MultiverseSimulatorCompiler,
-    Robot,
-    Object
-)
-
 from .utils import str_to_dict
